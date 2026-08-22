@@ -1,0 +1,851 @@
+/*
+ * Polynomial Forge - stylesheet.
+ *
+ * Dark is the only theme, pinned on <html> before first paint (see index.html).
+ * There is no toggle and no `prefers-color-scheme` anywhere in this file.
+ *
+ * Two rules shape every colour below:
+ *
+ * 1. WCAG 1.4.3 - every text token is >= 4.5:1 against every surface it can
+ *    land on, and text on a coloured fill uses a dedicated ink token rather
+ *    than near-white. Muted text lowers LIGHTNESS; `opacity` is never used to
+ *    dim text, because it dims the measured ratio too.
+ * 2. WCAG 1.4.11 - every element that paints itself as a control clears 3:1
+ *    against the surface just outside it, on its FILL or on its BORDER. That is
+ *    why `--line` is as bright as it is: a card on `--bg` has a fill ratio of
+ *    1.14, so the whole boundary burden falls on the border.
+ *
+ * State is never carried by colour alone. Every verdict, banner and audit row
+ * paints an icon, a word, and a colour together (WCAG 1.4.1).
+ */
+
+:root {
+  /* The lab's catalog accent. The shared top bar reads this; without it the bar
+     silently falls back to teal and looks like a different lab. */
+  --accent: #9f88ff;
+  --accent-bright: #c9b6ff;
+  --accent-ink: #14102b;
+
+  --bg: #07060d;
+  --surface: #101020;
+  --surface-2: #16162b;
+  --surface-3: #1d1d38;
+
+  --text: #eceaf6;
+  --text-dim: #b9b5cc;
+  --text-muted: #9a95b0;
+
+  /* Every visible boundary. 3.3:1 or better against every surface above. */
+  --line: #6e6e8f;
+  --line-strong: #8a8aa8;
+
+  --ok: #56d98a;
+  --ok-ink: #04160c;
+  --alarm: #ff7a8c;
+  --alarm-ink: #2a0009;
+  --warn: #ffb84d;
+  --warn-ink: #2a1a00;
+
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  color-scheme: dark;
+}
+
+/*
+ * Border-box everywhere. Without it, `width: 100%` plus padding and a border
+ * measures wider than its container - which is precisely how the hero's
+ * "Why it matters" box pushed the whole document 21px sideways at 380px and
+ * failed WCAG 1.4.10 (Reflow) before the gate caught it.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Longhand, not the `background` shorthand: axe and WebKit both miss the
+     shorthand when deciding what a text node is painted against. */
+  background-color: var(--bg);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Base element rules are scoped to #app so they cannot fight the always-dark
+   shared top bar, which carries its own palette. */
+#app {
+  display: block;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 clamp(0.9rem, 3vw, 2rem) 4rem;
+}
+
+#app:focus {
+  outline: none;
+}
+
+#app p {
+  margin: 0 0 0.9rem;
+  color: var(--text-dim);
+  max-width: 78ch;
+}
+
+#app h2,
+#app h3,
+#app h4 {
+  color: var(--text);
+  line-height: 1.25;
+  margin: 0 0 0.5rem;
+}
+
+#app h2 {
+  font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+}
+
+#app h3 {
+  font-size: 1.05rem;
+}
+
+#app h4 {
+  font-size: 0.95rem;
+}
+
+#app strong {
+  color: var(--text);
+}
+
+#app a {
+  color: var(--accent-bright);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+#app a:hover {
+  color: var(--text);
+}
+
+#app code,
+#app .mono {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+#app code {
+  background-color: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.05em 0.35em;
+  color: var(--text);
+}
+
+/* ---------- hero (standardized, §3.1) ---------- */
+
+.cl-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: clamp(1rem, 4vw, 3rem);
+  flex-wrap: wrap;
+  margin: clamp(1rem, 3vw, 2rem) 0 1.5rem;
+}
+
+.cl-hero-main {
+  flex: 1 1 22rem;
+  min-width: min(100%, 20rem);
+}
+
+.cl-hero-title {
+  margin: 0;
+  font-size: clamp(1.6rem, 3.8vw, 2.7rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+.cl-hero-sub {
+  margin: 0.4rem 0 0;
+  font-size: clamp(0.9rem, 1.6vw, 1.05rem);
+  letter-spacing: 0.01em;
+  color: var(--accent-bright);
+  font-family: var(--mono);
+}
+
+.cl-hero-desc {
+  margin: 0.55rem 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  max-width: 60ch;
+}
+
+.cl-hero-why {
+  flex: 0 1 min(40%, 26rem);
+  min-width: min(100%, 15rem);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.85rem 1.05rem;
+  background-color: var(--surface-2);
+}
+
+.cl-hero-why-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--accent-bright);
+  font-family: var(--mono);
+}
+
+.cl-hero-why-text {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+@media (max-width: 640px) {
+  .cl-hero {
+    flex-direction: column;
+  }
+  .cl-hero-why {
+    flex-basis: auto;
+    width: 100%;
+  }
+  /* In a column flex container `flex-basis` sizes the HEIGHT, so the title
+     block's cross size falls back to fit-content and can exceed the container.
+     Capping it is the other half of the reflow fix above. */
+  .cl-hero-main {
+    max-width: 100%;
+  }
+}
+
+/* ---------- cards and acts ---------- */
+
+.card {
+  background-color: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: clamp(0.9rem, 2.4vw, 1.4rem);
+  margin: 0 0 1.25rem;
+}
+
+.card > :last-child {
+  margin-bottom: 0;
+}
+
+.act-kicker {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--accent-bright);
+  margin-bottom: 0.3rem;
+}
+
+.lede {
+  color: var(--text) !important;
+  font-size: 1.02rem;
+}
+
+.panel {
+  background-color: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin: 0.9rem 0;
+}
+
+.panel > :last-child {
+  margin-bottom: 0;
+}
+
+.panel-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: flex-end;
+  margin-bottom: 0.9rem;
+}
+
+.stack-tight > * + * {
+  margin-top: 0.55rem;
+}
+
+/* ---------- controls ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.field label,
+.field-label {
+  font-size: 0.78rem;
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+#app input[type='text'],
+#app input[type='number'],
+#app select,
+#app textarea {
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  background-color: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  min-height: 2.4rem;
+}
+
+#app select {
+  /* A styled select needs its own chevron once the native one is removed. */
+  appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23b9b5cc' stroke-width='2' stroke-linecap='round'><path d='M5 8l5 5 5-5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 1rem 1rem;
+}
+
+#app input[type='range'] {
+  accent-color: var(--accent);
+  min-height: 2.4rem;
+  width: 100%;
+}
+
+#app input:focus-visible,
+#app select:focus-visible,
+#app textarea:focus-visible,
+#app button:focus-visible,
+#app summary:focus-visible,
+#app a:focus-visible,
+#app [tabindex]:focus-visible {
+  outline: 3px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+#app input[aria-invalid='true'] {
+  border-color: var(--alarm);
+  border-width: 2px;
+}
+
+#app button {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background-color: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  min-height: 2.5rem;
+  cursor: pointer;
+}
+
+#app button:hover:not(:disabled) {
+  background-color: var(--surface-3);
+  border-color: var(--accent-bright);
+}
+
+#app button:disabled {
+  cursor: not-allowed;
+  color: var(--text-muted);
+  border-color: var(--line);
+}
+
+#app button.primary {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+  /* Deliberately NOT the same colour as the fill: a border matching its own
+     fill leaves the control with no edge of its own. */
+  border-color: var(--accent-bright);
+}
+
+#app button.primary:hover:not(:disabled) {
+  background-color: var(--accent-bright);
+  color: var(--accent-ink);
+  border-color: var(--text);
+}
+
+#app button.danger {
+  background-color: var(--alarm);
+  color: var(--alarm-ink);
+  border-color: #ffb0bb;
+}
+
+#app button.danger:hover:not(:disabled) {
+  background-color: #ffb0bb;
+  color: var(--alarm-ink);
+  border-color: var(--text);
+}
+
+/* Segmented control: both states keep a 3:1 edge of their own. */
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+#app .seg button[aria-pressed='true'] {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent-bright);
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+#app input[type='checkbox'] {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.switch-row label {
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+/* ---------- verdicts, banners, status ---------- */
+
+.verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  border: 2px solid var(--line);
+  border-left-width: 6px;
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  background-color: var(--surface);
+  margin: 0.9rem 0;
+}
+
+.verdict-icon {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.45;
+  flex: 0 0 auto;
+}
+
+.verdict-body {
+  min-width: 0;
+}
+
+.verdict-label {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 0.82rem;
+  display: block;
+}
+
+.verdict-text {
+  margin: 0.2rem 0 0 !important;
+  font-size: 0.9rem;
+  color: var(--text-dim) !important;
+}
+
+.verdict.is-ok {
+  border-color: var(--ok);
+}
+.verdict.is-ok .verdict-icon,
+.verdict.is-ok .verdict-label {
+  color: var(--ok);
+}
+
+.verdict.is-bad {
+  border-color: var(--warn);
+}
+.verdict.is-bad .verdict-icon,
+.verdict.is-bad .verdict-label {
+  color: var(--warn);
+}
+
+/* An accepted forgery is an ALARM, not a success. Colour tracks system
+   integrity, never the raw return value. */
+.verdict.is-alarm {
+  border-color: var(--alarm);
+  background-color: #1c0a11;
+}
+.verdict.is-alarm .verdict-icon,
+.verdict.is-alarm .verdict-label {
+  color: var(--alarm);
+}
+
+.verdict.is-idle {
+  border-color: var(--line);
+}
+.verdict.is-idle .verdict-icon,
+.verdict.is-idle .verdict-label {
+  color: var(--text-dim);
+}
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  border: 2px dashed var(--warn);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  background-color: #1c1406;
+  margin: 0.9rem 0;
+}
+
+.banner-label {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 0.82rem;
+  color: var(--warn);
+  display: block;
+}
+
+.banner p {
+  margin: 0.2rem 0 0 !important;
+  font-size: 0.9rem;
+}
+
+.code-pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 0.1rem 0.45rem;
+  color: var(--text);
+  background-color: var(--surface);
+}
+
+/* ---------- key/value and hex ---------- */
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr;
+  gap: 0.35rem 0.9rem;
+  font-size: 0.88rem;
+  margin: 0.6rem 0;
+}
+
+.kv dt {
+  font-family: var(--mono);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.kv dd {
+  margin: 0;
+  font-family: var(--mono);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.hex {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.scroll-x {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background-color: var(--surface);
+}
+
+/* ---------- tables ---------- */
+
+#app table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.86rem;
+}
+
+#app caption {
+  caption-side: top;
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  padding: 0.5rem 0.7rem;
+}
+
+#app th,
+#app td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.4rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+#app th {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+#app td {
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+#app td.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+#app tbody tr:last-child th,
+#app tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tag-ok {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.tag-bad {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.tag-alarm {
+  color: var(--alarm);
+  font-weight: 700;
+}
+
+/* ---------- the division tableau (the headline mechanism) ---------- */
+
+.tableau-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background-color: var(--surface);
+}
+
+.tableau {
+  min-width: 34rem;
+}
+
+.tableau td,
+.tableau th {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.tableau tr.is-current th,
+.tableau tr.is-current td {
+  background-color: #241d47;
+  color: var(--text);
+}
+
+.tableau tr.is-pending th,
+.tableau tr.is-pending td {
+  color: var(--text-muted);
+}
+
+.tableau tr.is-remainder th,
+.tableau tr.is-remainder td {
+  border-top: 2px solid var(--line-strong);
+  font-weight: 700;
+}
+
+.remainder-cell {
+  font-weight: 700;
+}
+
+.remainder-zero {
+  color: var(--ok);
+}
+
+.remainder-nonzero {
+  color: var(--alarm);
+}
+
+.stepper-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 0.7rem;
+}
+
+.step-count {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+/* ---------- coefficient editor ---------- */
+
+.coefs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.coef {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 5.5rem;
+}
+
+.coef label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+#app .coef input {
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+  min-height: 2.2rem;
+}
+
+.poly-render {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- comparison ---------- */
+
+.compare-note {
+  font-size: 0.85rem;
+  color: var(--text-muted) !important;
+}
+
+.bar {
+  display: block;
+  height: 0.55rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background-color: var(--accent);
+  min-width: 3px;
+}
+
+/* ---------- progressive disclosure ---------- */
+
+details.deep {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background-color: var(--surface);
+  padding: 0.15rem 0.9rem;
+  margin: 0.9rem 0;
+}
+
+details.deep > summary {
+  cursor: pointer;
+  padding: 0.6rem 0;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+details.deep[open] > summary {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.6rem;
+}
+
+details.deep p:last-child {
+  margin-bottom: 0.7rem;
+}
+
+/* ---------- lists ---------- */
+
+#app ul,
+#app ol {
+  color: var(--text-dim);
+  max-width: 78ch;
+  padding-left: 1.2rem;
+}
+
+#app li {
+  margin-bottom: 0.35rem;
+}
+
+.plain-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+/* ---------- scripture footer ---------- */
+
+.scripture-footer {
+  border-top: 1px solid var(--line);
+  margin-top: 2.5rem;
+  padding-top: 1.2rem;
+  text-align: center;
+}
+
+.scripture-footer p {
+  color: var(--text-muted) !important;
+  font-size: 0.85rem;
+  margin: 0 auto !important;
+  max-width: 60ch;
+}
+
+/* ---------- motion ---------- */
+
+/*
+ * The only motion on this page is a 120ms colour transition on the tableau's
+ * current row, which exists to show WHICH row moved. Under reduced motion the
+ * transition is removed and the row still lands in its final painted state -
+ * nothing is parked at opacity 0 waiting for an animation to reveal it.
+ */
+.tableau tr {
+  transition: background-color 120ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tableau tr {
+    transition: none;
+  }
+  #app * {
+    scroll-behavior: auto;
+  }
+}

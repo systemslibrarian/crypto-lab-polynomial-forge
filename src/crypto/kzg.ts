@@ -184,6 +184,37 @@ export function open(
   return { z: zz, y, witness, srsDigest: srs.digest, shifted, shiftedBound }
 }
 
+/**
+ * What a prover gets when it insists on a value that is not p(z).
+ *
+ * There is no honest opening for a wrong y, because (p(X) - y)/(X - z) is not a
+ * polynomial. A prover that ploughs on anyway does exactly what `open` does -
+ * runs the synthetic division and commits to the quotient row - and simply
+ * discards the non-zero remainder. This function is that prover, written out so
+ * the page can show what happens next rather than asserting it.
+ *
+ * The result is a well-formed proof object over a real group element. It is
+ * rejected by `verify` with PAIRING_FAIL, because the identity
+ * p(X) - y = q(X)(X - z) it is supposed to witness is off by exactly the
+ * remainder, and the pairing sees that.
+ */
+export function attemptOpenAtClaimedValue(
+  srs: Srs,
+  coefficients: readonly bigint[],
+  z: bigint,
+  claimedY: bigint,
+): { readonly proof: KzgProof; readonly remainder: bigint; readonly honest: boolean } {
+  const zz = frOf(z)
+  const y = frOf(claimedY)
+  const { quotient, remainder } = divideByLinear(coefficients, zz, y)
+  const witness = g1Msm(srs.g1Powers.slice(0, quotient.length), quotient)
+  return {
+    proof: { z: zz, y, witness, srsDigest: srs.digest },
+    remainder,
+    honest: Fr.is0(remainder),
+  }
+}
+
 export interface VerifyOptions {
   /**
    * When set, the verifier enforces deg(p) <= degreeBound via the shifted

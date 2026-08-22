@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { Fr, frRandom, rootOfUnity } from './fr.js'
+import { sha256 } from '@noble/hashes/sha2.js'
 import {
   COSET_SHIFT,
+  COSET_SHIFT_SEED,
+  OpeningPointInDomainError,
   DEFAULT_FRI_PARAMS,
   FRI_COMMITMENT_BYTES,
   buildDomain,
@@ -26,6 +29,34 @@ describe('the FRI evaluation domain', () => {
     expect(new Set(d.points.map(String)).size).toBe(128)
     expect(Fr.pow(d.generator, 128n)).toBe(1n)
     expect(Fr.pow(d.generator, 64n)).not.toBe(1n)
+  })
+
+  it('the coset shift is the published hash, not a chosen number', () => {
+    // Independent re-derivation of the nothing-up-my-sleeve constant.
+    const digest = sha256(new TextEncoder().encode(COSET_SHIFT_SEED))
+    let v = 0n
+    for (const b of digest) v = (v << 8n) | BigInt(b)
+    expect(COSET_SHIFT).toBe(v % Fr.ORDER)
+  })
+
+  it('no small integer lands in any domain a visitor can reach', () => {
+    // The opening-point control accepts integers below 1e6. If any of them were
+    // in the evaluation domain, the DEEP quotient would divide by zero there.
+    // Checked across every domain size this page builds, up to 1024 points.
+    const LIMIT = 1_000_000n
+    for (let size = 8; size <= 1024; size *= 2) {
+      let d = buildDomain(size)
+      for (let layer = 0; d.size >= 8; layer++) {
+        for (const x of d.points) expect(x < LIMIT).toBe(false)
+        if (d.size === 8) break
+        d = squareDomain(d)
+      }
+    }
+  })
+
+  it('refuses an opening point inside the domain instead of dividing by zero', () => {
+    const inside = buildDomain(DEFAULT_FRI_PARAMS.n * DEFAULT_FRI_PARAMS.blowup).points[3]
+    expect(() => friProve(P, inside, DEFAULT_FRI_PARAMS)).toThrow(OpeningPointInDomainError)
   })
 
   it('index i and i + half are x and -x', () => {

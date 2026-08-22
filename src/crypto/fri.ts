@@ -44,8 +44,8 @@
  * as a heuristic. Real deployments target 80-128 bits and add grinding; this
  * one does not.
  */
-import { Fr, frOf, frToBytes } from './fr.js'
-import { rootOfUnity } from './fr.js'
+import { Fr, frFromBytesReduce, frOf, frToBytes, rootOfUnity } from './fr.js'
+import { sha256 } from '@noble/hashes/sha2.js'
 import { polyEval, polyDegree, interpolate, type Poly } from './poly.js'
 import { Transcript } from './transcript.js'
 import {
@@ -86,6 +86,19 @@ export function friSoundnessBits(params: FriParams): { readonly heuristicBits: n
   }
 }
 
+/**
+ * The one input FRI refuses: an opening point that lands inside the evaluation
+ * domain. It is not a soundness problem, it is a division by zero - the DEEP
+ * quotient is undefined there - and the honest response is to say so rather
+ * than to return a proof of something else.
+ */
+export class OpeningPointInDomainError extends Error {
+  constructor(readonly z: bigint) {
+    super(`opening point ${z} lies inside the FRI evaluation domain; DEEP requires a z outside it`)
+    this.name = 'OpeningPointInDomainError'
+  }
+}
+
 /** A coset of the multiplicative subgroup of order size: { shift * w^i }. */
 export interface Domain {
   readonly size: number
@@ -95,11 +108,22 @@ export interface Domain {
 }
 
 /**
- * The coset shift. Using a coset rather than the subgroup itself keeps the
- * evaluation domain disjoint from the small integers a learner will type as an
- * opening point, so `z` really is outside D without having to check.
+ * The coset shift.
+ *
+ * FRI needs the opening point z to lie OUTSIDE the evaluation domain, because
+ * the DEEP quotient divides by (x - z) at every domain point. Using the
+ * subgroup itself would put 1 in the domain, and using a small integer as the
+ * shift would put that integer in the domain - which is exactly the collision
+ * a learner produces by typing the shift as their opening point.
+ *
+ * So the shift is a nothing-up-my-sleeve field element: the SHA-256 of a fixed
+ * string, reduced into Fr. Nobody chose its value, it is reproducible by
+ * anyone, and no small integer is anywhere near the resulting coset. That last
+ * property is asserted in fri.test.ts rather than assumed.
  */
-export const COSET_SHIFT = 7n
+export const COSET_SHIFT_SEED = 'crypto-lab-polynomial-forge/fri/coset-shift/v1'
+
+export const COSET_SHIFT: bigint = frFromBytesReduce(sha256(new TextEncoder().encode(COSET_SHIFT_SEED)))
 
 export function buildDomain(size: number, shift: bigint = COSET_SHIFT): Domain {
   const k = Math.log2(size)
@@ -199,7 +223,7 @@ function newTranscript(root: Uint8Array, params: FriParams, z: bigint, y: bigint
 function quotientValues(values: readonly bigint[], domain: Domain, z: bigint, y: bigint): bigint[] {
   return values.map((v, i) => {
     const denom = Fr.sub(domain.points[i], z)
-    if (Fr.is0(denom)) throw new Error('opening point lies inside the FRI domain; pick a z outside it')
+    if (Fr.is0(denom)) throw new OpeningPointInDomainError(z)
     return Fr.div(Fr.sub(v, y), denom)
   })
 }
