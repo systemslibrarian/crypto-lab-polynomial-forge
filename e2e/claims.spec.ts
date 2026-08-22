@@ -594,6 +594,15 @@ test.describe('Act 6 — the comparison reports what it measured', () => {
     expect(ratio).toContain(`(${(proofBytes.IPA / proofBytes.KZG).toFixed(1)}x)`);
     expect(ratio).toContain(`(${(proofBytes.FRI / proofBytes.KZG).toFixed(0)}x)`);
 
+    // RE-DERIVATION: an IPA proof is 2*log2(n) compressed G1 points plus three
+    // field elements, and n is stated in the "polynomial" line beside the
+    // table. Rebuilt here from the page's OWN description of what it ran,
+    // rather than from the constant the source computes.
+    const padded = Number(info['polynomial'].match(/padded to (\d+) coefficients/)![1]);
+    expect(proofBytes.IPA).toBe(2 * Math.log2(padded) * 48 + 3 * 32);
+    // ...and a KZG proof is z, y and one G1 point.
+    expect(proofBytes.KZG).toBe(2 * 32 + 48);
+
     // CROSS-CHECK: the measured sizes are in the order the stated asymptotics
     // predict. A table whose "constant" row was larger than its "logarithmic"
     // row would be describing something other than what it ran.

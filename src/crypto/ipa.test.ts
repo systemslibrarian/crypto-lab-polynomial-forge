@@ -124,7 +124,25 @@ describe('IPA — evaluation as an inner product', () => {
     const proof = ipaOpen(SETUP, P, 5n)
     expect(proof.l.length).toBe(Math.log2(N))
     expect(proof.r.length).toBe(Math.log2(N))
-    expect(ipaProofBytes(N)).toBe(2 * Math.log2(N) * 48 + 96)
+  })
+
+  it('the reported proof size is what a real proof actually contains', () => {
+    // Deliberately NOT `2 * log2(n) * 48 + 96` - that is the expression the
+    // source uses, and a test that re-derives it would agree with a bug in it.
+    // Count the bytes of the parts a real proof holds instead.
+    const proof = ipaOpen(SETUP, P, 5n)
+    let counted = 0
+    for (const P1 of [...proof.l, ...proof.r]) {
+      const encoded = P1.toBytes()
+      expect(encoded.length).toBe(48)
+      counted += encoded.length
+    }
+    // z, y and the final scalar a, at the field's canonical 32-byte encoding.
+    for (const scalar of [proof.z, proof.y, proof.a]) {
+      expect(scalar).toBeLessThan(Fr.ORDER)
+      counted += 32
+    }
+    expect(ipaProofBytes(N)).toBe(counted)
   })
 
   it('a shorter polynomial is zero-padded and still opens correctly', () => {
