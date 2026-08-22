@@ -2,7 +2,7 @@
  * The on-ramp: what a polynomial commitment is, in plain language, before any
  * hex or slider - and an honest statement of scope immediately after it.
  */
-import { card, deep, el, para, scrollRegion, table } from './dom.js'
+import { card, deep, el, panel, para, scrollRegion, table } from './dom.js'
 import { DEGREE_UNENFORCED, DEGREE_UNENFORCED_EXPLANATION, FAILURE_CODES, FAILURE_EXPLANATIONS } from '../crypto/codes.js'
 
 export function heroSection(): HTMLElement {
@@ -19,7 +19,7 @@ export function heroSection(): HTMLElement {
       el('span', { class: 'cl-hero-why-label', text: 'WHY IT MATTERS' }),
       el('p', {
         class: 'cl-hero-why-text',
-        text: 'Every modern proof system - the ones securing rollups holding billions - rests on a polynomial commitment. Two of the three here need a ceremony nobody can audit for the one thing that matters, and the check that would catch the other failure is the check protocols forget to run.',
+        text: 'Every modern proof system - the ones securing rollups holding billions - rests on a polynomial commitment. The fastest of the three needs a ceremony nobody can audit for the one thing that matters, and the check that catches the other failure here is the one protocols forget to run.',
       }),
     ]),
   ])
@@ -39,6 +39,15 @@ export function introCard(): HTMLElement {
     ),
     para(
       'This is the layer underneath almost every modern zero-knowledge proof system. A proof about a computation gets turned into a handful of claims about polynomials; the commitment scheme is what makes those claims short and checkable. Change the commitment scheme and you get a different proof system with the same logic - which is exactly what the three below are.',
+    ),
+    panel(
+      'Notation, once',
+      para(
+        'Two pieces of shorthand run through the whole page. `[x]1` means "the number x hidden in the first group": the elliptic-curve point you get by adding the generator of G1 to itself x times. `[x]2` is the same thing in the second group, G2. Both are one-way - you can compute `[x]1` from x, and you cannot get x back out - which is exactly what makes them useful for hiding a value while still being able to check equations about it.',
+      ),
+      para(
+        'So `C = [p(tau)]1` reads as "the commitment is the polynomial\'s value at the secret point tau, hidden in G1". Everything else is arithmetic on those hidden values.',
+      ),
     ),
     deep(
       'Why polynomials, of all things?',
@@ -135,6 +144,9 @@ export function failureCodeCard(): HTMLElement {
         head: ['Code', 'What it means'],
         rows,
       }),
+    ),
+    para(
+      'One honesty note about that list. `PAIRING_FAIL` and `DEGREE_EXCEEDED` are the two that come from the cryptography itself: they are equations that did not hold. `MALFORMED_PROOF` is a parsing decision, and `POINT_MISMATCH` and `SETUP_MISMATCH` are this page\'s framing rather than anything in the KZG scheme — a production verifier such as Ethereum\'s `c-kzg` takes (commitment, z, y, proof) and returns a bare boolean, leaving it to the caller to have asked about the right point against the right setup. Naming those two here is a teaching choice, because "your proof is about something else" and "your proof is false" are different mistakes and a bare boolean cannot tell them apart.',
     ),
     el('div', { class: 'banner', role: 'note' }, [
       el('span', { class: 'verdict-icon', 'aria-hidden': 'true', text: '[!]' }),

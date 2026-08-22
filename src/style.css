@@ -2,7 +2,8 @@
  * Polynomial Forge - stylesheet.
  *
  * Dark is the only theme, pinned on <html> before first paint (see index.html).
- * There is no toggle and no `prefers-color-scheme` anywhere in this file.
+ * There is no theme toggle here, and nothing in this file branches on the
+ * visitor's system colour preference.
  *
  * Two rules shape every colour below:
  *
@@ -753,6 +754,17 @@ body {
 }
 
 /* ---------- comparison ---------- */
+
+.field-error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--alarm);
+  max-width: 40ch;
+}
+
+.field-error:empty {
+  display: none;
+}
 
 .compare-note {
   font-size: 0.85rem;

@@ -15,16 +15,16 @@
 import { button, card, deep, el, panel, para, scrollRegion } from './dom.js'
 import { ellipsize, groupHex, ms, scalar, scalarFull } from './format.js'
 import { verdictBox } from './verdict.js'
-import { FAILURE_EXPLANATIONS } from '../crypto/codes.js'
 import { Fr, frOf } from '../crypto/fr.js'
 import { divideByLinear, polyDegree, polyEval } from '../crypto/poly.js'
 import {
   attemptOpenAtClaimedValue,
   commit,
-  deserializeProof,
   open,
   serializeProof,
   verify,
+  verifySerialized,
+  KZG_PROOF_BYTES,
 } from '../crypto/kzg.js'
 import { runCeremony } from '../crypto/ceremony.js'
 import { g1ToHex } from '../crypto/bls.js'
@@ -61,13 +61,36 @@ export function actOpen(): HTMLElement {
     inputmode: 'numeric',
     'aria-describedby': 'open-y-help',
   }) as HTMLInputElement
+  // An `aria-invalid` boundary with no text is a red border and nothing else -
+  // invisible to a screen reader and meaningless in grayscale. The message is a
+  // live region, and the input points at it, so the reason arrives with the
+  // state (WCAG 3.3.1).
+  const yError = el('p', {
+    id: 'open-y-error',
+    class: 'field-error',
+    role: 'status',
+    'aria-live': 'polite',
+  })
+  function setYError(message: string): void {
+    if (message) {
+      yInput.setAttribute('aria-invalid', 'true')
+      yError.textContent = message
+      yInput.setAttribute('aria-describedby', 'open-y-error open-y-help')
+    } else {
+      yInput.removeAttribute('aria-invalid')
+      yError.textContent = ''
+      yInput.setAttribute('aria-describedby', 'open-y-help')
+    }
+  }
   yInput.addEventListener('input', () => {
     const raw = yInput.value.trim()
     if (!/^\d+$/.test(raw)) {
-      yInput.setAttribute('aria-invalid', 'true')
+      setYError(
+        'Not a field element: y must be a non-negative whole number. The value below is unchanged until this is fixed.',
+      )
       return
     }
-    yInput.removeAttribute('aria-invalid')
+    setYError('')
     setClaimedY(frOf(BigInt(raw)))
   })
 
@@ -178,12 +201,15 @@ export function actOpen(): HTMLElement {
       }),
     )
 
-    stepStatus.textContent =
+    const stepText =
       step === 0
         ? `Reset. ${total} rows to go — press Step.`
         : step < total
           ? `Row ${step} of ${total} worked through.`
           : `All ${total} rows worked through. Remainder = ${scalar(remainder)}.`
+    // Only write when it actually changed: assigning identical text to a live
+    // region still mutates the DOM, and several screen readers re-announce it.
+    if (stepStatus.textContent !== stepText) stepStatus.textContent = stepText
 
     stepBack.disabled = step === 0
     stepFwd.disabled = step >= total
@@ -256,7 +282,7 @@ export function actOpen(): HTMLElement {
           'ACCEPTED',
           `The pairing equation holds: e(C − [y]1, [1]2) = e(pi, [tau − z]2). The claimed value really is p(${scalar(
             z,
-          )}), and the proof is ${48} bytes.`,
+          )}). The witness pi is one compressed G1 point, 48 bytes; the whole proof on the wire is ${KZG_PROOF_BYTES} bytes, because it also carries z and y at 32 bytes each.`,
         )
       } else {
         verdict.set(
@@ -351,22 +377,20 @@ export function actOpen(): HTMLElement {
     'Corrupt the bytes',
     guarded(tamperVerdict, () => {
       const srs = state.ceremony.srs
+      const C = commit(srs, state.coefficients)
       const proof = open(srs, state.coefficients, state.z)
       const bytes = serializeProof(proof)
       // Flip a bit inside the compressed G1 point. The result is almost never a
       // point on the curve at all, and when it is, almost never in the
       // prime-order subgroup - either way the strict parse refuses it.
       bytes[70] ^= 0x01
-      let message = ''
-      try {
-        deserializeProof(bytes, srs.digest)
-      } catch (err) {
-        message = err instanceof Error ? err.message : String(err)
-      }
-      if (!message) throw new Error('a corrupted proof parsed cleanly; the parser is too permissive')
-      showTamper('MALFORMED_PROOF', FAILURE_EXPLANATIONS.MALFORMED_PROOF, [
+      // Routed through verifySerialized, so the code below is the verifier's
+      // own verdict rather than a label this file chose. Nothing here knows in
+      // advance which code it will get.
+      const result = verifySerialized(srs, C, state.z, proof.y, bytes)
+      if (result.ok) throw new Error('a corrupted proof verified; the parser is too permissive')
+      showTamper(result.code, result.detail, [
         ['what was broken', 'one bit flipped inside the 48-byte compressed witness point'],
-        ['parser said', message],
         ['caught', 'at parse time, before any algebra could run on it'],
       ])
     }),
@@ -388,7 +412,7 @@ export function actOpen(): HTMLElement {
       // The invalid flag belongs to what is IN the box. Replacing the contents
       // programmatically - which is what "Use the true value" does - has to
       // clear it, or the box keeps an alarm border over a perfectly good value.
-      yInput.removeAttribute('aria-invalid')
+      setYError('')
     }
     renderTableau()
   })
@@ -408,7 +432,11 @@ export function actOpen(): HTMLElement {
       'Inputs',
       el('div', { class: 'row' }, [
         el('div', { class: 'field' }, [el('label', { for: 'open-z', text: 'opening point z' }), zInput]),
-        el('div', { class: 'field' }, [el('label', { for: 'open-y', text: 'claimed value y' }), yInput]),
+        el('div', { class: 'field' }, [
+          el('label', { for: 'open-y', text: 'claimed value y' }),
+          yInput,
+          yError,
+        ]),
         resetY,
       ]),
       el('p', {

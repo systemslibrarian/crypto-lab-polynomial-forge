@@ -54,6 +54,14 @@ export function actCeremony(): HTMLElement {
   degreeSelect.addEventListener('change', () => setSrsDegree(Number(degreeSelect.value)))
 
   function renderRoster(): void {
+    // Re-rendering destroys the button the user just pressed, which drops
+    // keyboard focus to <body> and loses the reader's place entirely (WCAG
+    // 3.2.2 / 2.4.3). Remember which control was focused and put focus back on
+    // its replacement.
+    const focusedId =
+      document.activeElement instanceof HTMLElement && roster.contains(document.activeElement)
+        ? document.activeElement.id
+        : null
     roster.replaceChildren(
       ...state.participants.map((p, i) => {
         const eraseId = `mode-${i}-erase`
@@ -74,6 +82,10 @@ export function actCeremony(): HTMLElement {
         ])
       }),
     )
+    if (focusedId) {
+      const restored = roster.querySelector<HTMLElement>(`#${CSS.escape(focusedId)}`)
+      restored?.focus()
+    }
   }
 
   function renderSummary(): void {
@@ -95,6 +107,12 @@ export function actCeremony(): HTMLElement {
       ]),
     )
   }
+
+  // A polite live region that re-announces identical text on every unrelated
+  // keystroke is worse than no live region: it trains a screen-reader user to
+  // tune it out. The audit only speaks when the ceremony it describes has
+  // actually changed.
+  let lastAuditKey = ''
 
   function renderAudit(): void {
     const audit = state.audit
@@ -119,6 +137,9 @@ export function actCeremony(): HTMLElement {
       ),
     )
     const passing = audit.rows.filter((r) => r.ok).length
+    const auditKey = `${state.ceremony.srs.digest}|${audit.ok}|${passing}/${audit.rows.length}`
+    if (auditKey === lastAuditKey) return
+    lastAuditKey = auditKey
     if (audit.ok) {
       auditStatus.set(
         'ok',
@@ -251,7 +272,10 @@ export function actToxic(): HTMLElement {
 
       const C = commit(c.srs, state.coefficients)
       const t0 = performance.now()
-      const forged = forgeOpening({ srs: c.srs, coefficients: state.coefficients, tau, z, claimedY: lie })
+      // Note what is NOT passed: the polynomial. The forgery is built from the
+      // commitment alone, which is why it works against data the forger has
+      // never seen.
+      const forged = forgeOpening({ srs: c.srs, commitment: C, tau, z, claimedY: lie })
       const forgeMs = performance.now() - t0
       const result = verify(c.srs, C, z, lie, forged.proof)
       const truth = polyEval(state.coefficients, z)
@@ -265,10 +289,12 @@ export function actToxic(): HTMLElement {
           el('dd', { text: scalarFull(truth) }),
           el('dt', { text: 'forged pi' }),
           el('dd', { class: 'hex', text: ellipsize(g1ToHex(forged.proof.witness), 32, 20) }),
-          el('dt', { text: 'its exponent' }),
-          el('dd', { text: `(p(tau) − y)/(tau − z) = ${scalar(forged.witnessScalar)}` }),
+          el('dt', { text: 'how it was built' }),
+          el('dd', { text: `pi = (tau − z)^-1 · (C − [y]1), from the commitment alone` }),
+          el('dt', { text: 'needed the polynomial?' }),
+          el('dd', { class: 'tag-alarm', text: '[!] no — only C and tau' }),
           el('dt', { text: 'time to forge' }),
-          el('dd', { text: `${ms(forgeMs)} — one field division and one scalar multiplication` }),
+          el('dd', { text: `${ms(forgeMs)} — one field inversion and one scalar multiplication` }),
         ]),
       )
 
@@ -411,12 +437,18 @@ export function actToxic(): HTMLElement {
       ),
     ),
     deep(
-      'Who can actually do this',
+      'Who can actually do this — and it is worse than it looks',
       para(
-        'A prover who also knows the committed polynomial. Recovering p(tau) from C = [p(tau)]1 is a discrete log, so knowing tau alone does not let you forge against a commitment someone else made to a polynomial you have never seen.',
+        'Anyone who knows tau. That is the entire requirement, and it is worth being precise about why, because the intuitive answer is wrong.',
       ),
       para(
-        'What knowing tau DOES give you, universally, is the ability to commit to a polynomial you can later open to any value at any point — because you can choose p and compute the forged witness for whatever y you decide on afterwards. Binding is gone; you simply have to be the one who committed.',
+        'The forged witness is `pi = (tau − z)^-1 · (C − [y]1)`. Read the right-hand side carefully: `C` is a point the forger already has, `[y]1` is a point they can compute from the y they invented, and `(tau − z)^-1` is an ordinary field element. So the whole thing is one subtraction and one scalar multiplication — group operations on values already in hand.',
+      ),
+      para(
+        'What it never does is extract `p(tau)` from `C`. That WOULD be a discrete log, and it is what makes people conclude a forger must also know the committed polynomial. They do not. The scalar `p(tau)` never appears in the computation at all, which means a commitment somebody else made, to data the forger has never seen, can be opened to any value at any point.',
+      ),
+      para(
+        'An earlier revision of this page said the opposite. It was wrong, and wrong in the direction that understates the damage. The unit suite now pins the correction with a test that forges against a commitment whose polynomial is generated inside a closure and never handed to the forging code.',
       ),
     ),
   )

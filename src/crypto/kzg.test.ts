@@ -80,6 +80,28 @@ describe('KZG — commit / open / verify', () => {
     if (!result.ok) expect(result.code).toBe('MALFORMED_PROOF')
   })
 
+  it('accepts a zero-padded vector in both commit AND open', () => {
+    // `commit` judges by DEGREE, so a vector padded past the SRS length is fine
+    // as long as its real degree fits. `open` has to agree, or a caller that
+    // pads gets a length-mismatch crash out of the multi-scalar multiplication
+    // instead of a proof.
+    const padded = [...P, ...new Array(20).fill(0n)]
+    expect(padded.length).toBeGreaterThan(SRS.maxDegree + 1)
+    const C = commit(SRS, padded)
+    expect(C.equals(commit(SRS, P))).toBe(true)
+    const proof = open(SRS, padded, 5n)
+    expect(verify(SRS, C, 5n, polyEval(P, 5n), proof).ok).toBe(true)
+  })
+
+  it('rejects a claimed y that disagrees with the proof, before any pairing', () => {
+    // The y-mismatch arm of POINT_MISMATCH: the proof is internally honest but
+    // the verifier was asked about a different value than the one it witnesses.
+    const proof = open(SRS, P, 5n)
+    const result = verify(SRS, commit(SRS, P), 5n, Fr.add(proof.y, 1n), proof)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('POINT_MISMATCH')
+  })
+
   it('refuses to commit above the SRS degree', () => {
     expect(() => commit(SRS, Array.from({ length: 18 }, () => 1n))).toThrow(/exceeds this SRS/)
   })

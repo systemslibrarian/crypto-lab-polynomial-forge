@@ -13,30 +13,40 @@
  *
  *     e(C - [y]1, [1]2) == e(pi, [tau - z]2)
  *
- * Anyone holding tau as a SCALAR can solve that equation directly, for any y
- * they like:
+ * Anyone holding tau can solve that equation directly. Rearranged, it says the
+ * discrete log of pi must be (tau - z)^-1 times the discrete log of C - [y]1 -
+ * and multiplying a GROUP ELEMENT by a known scalar is just scalar
+ * multiplication:
  *
- *     pi_forged = [ (p(tau) - y) / (tau - z) ]1
+ *     pi_forged = (tau - z)^-1 * (C - [y]1)
  *
- * The division is now an ordinary field division, not a polynomial division, so
- * a remainder is not an obstacle - there is no remainder, because there is no
- * polynomial. The result satisfies the pairing equation identically. The
+ * The division is now an ordinary field inversion, not a polynomial division,
+ * so a remainder is not an obstacle - there is no remainder, because there is
+ * no polynomial. The result satisfies the pairing equation identically. The
  * verifier is not fooled by a subtle bug; it is answering the question it was
  * asked, and that question stopped meaning anything the moment tau was known.
  *
- * WHO CAN DO THIS. Someone who knows both tau and the committed polynomial -
- * in practice a prover who also compromised the ceremony. Knowing tau alone
- * does not let you forge against someone else's commitment, because recovering
- * p(tau) from C = [p(tau)]1 is a discrete log. Act 4 says so on the page.
+ * WHO CAN DO THIS - AND IT IS WORSE THAN IT LOOKS. Anyone who knows tau. That
+ * is the whole requirement. Note what the formula above does NOT need: it never
+ * extracts p(tau) from C, so it never solves a discrete log, so the forger
+ * never has to know the committed polynomial. A commitment someone else made,
+ * to data the forger has never seen, can be opened to any value at any point.
+ *
+ * An earlier revision of this file claimed the opposite - that knowing tau
+ * alone was not enough, because recovering p(tau) from C would be a discrete
+ * log. That was wrong, and wrong in the direction that understates the damage:
+ * the scalar p(tau) is never needed, only the point C. `forge.test.ts` pins the
+ * correction by forging against a commitment whose polynomial this module is
+ * never given.
  */
 import { Fr, frOf } from './fr.js'
 import { G1, type G1Point, g1Mul } from './bls.js'
-import { polyEval } from './poly.js'
 import type { KzgProof, Srs } from './kzg.js'
 
 export interface ForgeryInput {
   readonly srs: Srs
-  readonly coefficients: readonly bigint[]
+  /** The commitment to open dishonestly. Its polynomial is NOT required. */
+  readonly commitment: G1Point
   readonly tau: bigint
   readonly z: bigint
   /** The value the forger wants the verifier to accept. */
@@ -45,20 +55,23 @@ export interface ForgeryInput {
 
 export interface Forgery {
   readonly proof: KzgProof
-  /** p(tau) as a scalar - the thing only a compromised prover can compute. */
-  readonly pAtTau: bigint
-  /** The true p(z), for contrast with claimedY. */
-  readonly trueY: bigint
-  /** The forged witness's discrete log: (p(tau) - y) / (tau - z). */
-  readonly witnessScalar: bigint
+  /** (tau - z)^-1, the only new value the forger had to compute. */
+  readonly inverse: bigint
+  /**
+   * True when the forgery was produced without ever being given the committed
+   * polynomial - which is every time, and is the point.
+   */
+  readonly neededThePolynomial: false
 }
 
 /**
- * Build a forged opening. Throws only in the one degenerate case where the
- * opening point collides with the trapdoor (probability about 2^-255).
+ * Build a forged opening from the commitment alone.
+ *
+ * Throws only in the one degenerate case where the opening point collides with
+ * the trapdoor (probability about 2^-255).
  */
 export function forgeOpening(input: ForgeryInput): Forgery {
-  const { srs, coefficients, z, claimedY } = input
+  const { srs, commitment, z, claimedY } = input
   const tau = frOf(input.tau)
   const zz = frOf(z)
   const y = frOf(claimedY)
@@ -67,16 +80,16 @@ export function forgeOpening(input: ForgeryInput): Forgery {
   if (Fr.is0(denom)) {
     throw new Error('cannot forge at z = tau: the verification equation degenerates there')
   }
+  const inverse = Fr.inv(denom)
 
-  const pAtTau = polyEval(coefficients, tau)
-  const witnessScalar = Fr.mul(Fr.sub(pAtTau, y), Fr.inv(denom))
-  const witness: G1Point = g1Mul(G1.BASE, witnessScalar)
+  // C - [y]1, scaled by (tau - z)^-1. Group arithmetic only: no discrete log,
+  // no polynomial, no division with a remainder to worry about.
+  const witness: G1Point = g1Mul(commitment.subtract(g1Mul(G1.BASE, y)), inverse)
 
   return {
     proof: { z: zz, y, witness, srsDigest: srs.digest },
-    pAtTau,
-    trueY: polyEval(coefficients, zz),
-    witnessScalar,
+    inverse,
+    neededThePolynomial: false,
   }
 }
 
@@ -86,7 +99,8 @@ export function forgeOpening(input: ForgeryInput): Forgery {
  * Returned rather than thrown, because "the value is not in this page's memory"
  * is the honest outcome an erased ceremony produces, and the UI shows it as
  * such. There is no clever fallback: without tau the forger would have to
- * commit to a quotient that does not exist.
+ * commit to (p(X) - y)/(X - z), and with y != p(z) that is not a polynomial -
+ * there is nothing to commit to.
  */
 export function forgeWithoutTau(): { readonly possible: false; readonly reason: string } {
   return {

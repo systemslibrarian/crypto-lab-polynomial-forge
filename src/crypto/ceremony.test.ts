@@ -11,7 +11,7 @@ import {
   transcriptByteLength,
   type CeremonyOptions,
 } from './ceremony.js'
-import { commit, open, verify } from './kzg.js'
+import { commit, open, srsFromTau, verify } from './kzg.js'
 import { forgeOpening, forgeWithoutTau } from './forge.js'
 import { polyEval } from './poly.js'
 
@@ -69,9 +69,69 @@ describe('the transcript audit', () => {
     expect(audit.rows.every((r) => r.ok)).toBe(true)
   })
 
-  it('runs every check it claims: four per participant plus two on the SRS', () => {
+  it('runs every check it claims: six per participant plus four on the SRS', () => {
     const audit = auditTranscript(runCeremony(honest(3)))
-    expect(audit.rows.length).toBe(3 * 4 + 2)
+    expect(audit.rows.length).toBe(3 * 6 + 4)
+  })
+
+  it('refuses an SRS that is not the output of the chain it audits', () => {
+    // The cheapest substitution attack on an audit: keep an honest, fully
+    // verifying contribution chain and hand the verifier a DIFFERENT reference
+    // string. Every per-contribution check still passes, and the series checks
+    // pass too, because the substituted SRS is itself a valid geometric series
+    // - one whose tau the attacker chose.
+    const clean = runCeremony(honest(2))
+    const attacker = 0x1234_5678_9abc_def0n
+    const substituted = { ...clean, srs: srsFromTau(attacker, clean.maxDegree) }
+    const audit = auditTranscript(substituted)
+    expect(audit.ok).toBe(false)
+    expect(audit.rows.some((r) => !r.ok && r.label.includes('output of the last contribution'))).toBe(true)
+  })
+
+  it('refuses an SRS whose powers are all the identity', () => {
+    // Pairings with the point at infinity are the identity of G_T, so an
+    // all-identity "SRS" satisfies every series equation vacuously. Without an
+    // explicit non-degeneracy check that is an all-green audit over an SRS that
+    // secures nothing.
+    const clean = runCeremony(honest(1))
+    const dead = {
+      ...clean,
+      contributions: clean.contributions.map((c) => ({
+        ...c,
+        g1Powers: c.g1Powers.map(() => G1.ZERO),
+        g2Powers: c.g2Powers.map(() => G2.ZERO),
+      })),
+    }
+    const audit = auditTranscript(dead)
+    expect(audit.ok).toBe(false)
+    expect(audit.rows.some((r) => !r.ok && r.label.includes('the points are real'))).toBe(true)
+  })
+
+  it('refuses an SRS whose zeroth power is not the generator', () => {
+    const clean = runCeremony(honest(1))
+    const shifted = {
+      ...clean,
+      srs: {
+        ...clean.srs,
+        g1Powers: clean.srs.g1Powers.map((P, i) => (i === 0 ? g1Mul(G1.BASE, 2n) : P)),
+      },
+    }
+    const audit = auditTranscript(shifted)
+    expect(audit.ok).toBe(false)
+    expect(audit.rows.some((r) => !r.ok && r.label.includes('starts at the generators'))).toBe(true)
+  })
+
+  it('refuses a contribution whose declared transcript hash is invented', () => {
+    const clean = runCeremony(honest(2))
+    const lying = {
+      ...clean,
+      contributions: clean.contributions.map((c, i) =>
+        i === 0 ? { ...c, transcriptHash: 'ff'.repeat(32) } : c,
+      ),
+    }
+    const audit = auditTranscript(lying)
+    expect(audit.ok).toBe(false)
+    expect(audit.rows.some((r) => !r.ok && r.label.includes('transcript hash'))).toBe(true)
   })
 
   /**
@@ -200,11 +260,34 @@ describe('Attack 1 — forging an opening with a recovered trapdoor', () => {
     const lie = Fr.add(trueY, 1_000_000n)
     expect(lie).not.toBe(trueY)
 
-    const forged = forgeOpening({ srs: c.srs, coefficients: P, tau: tau!, z, claimedY: lie })
-    expect(forged.trueY).toBe(trueY)
-
+    const forged = forgeOpening({ srs: c.srs, commitment: C, tau: tau!, z, claimedY: lie })
     const verdict = verify(c.srs, C, z, lie, forged.proof)
     expect(verdict.ok).toBe(true) // the real verifier accepts a value that is false
+  })
+
+  /**
+   * The correction. An earlier revision claimed a forger also had to know the
+   * committed polynomial, because recovering p(tau) from C would be a discrete
+   * log. It does not: the forged witness is (tau - z)^-1 * (C - [y]1), which is
+   * a scalar multiplication of a point, and the scalar p(tau) never appears.
+   *
+   * This test is written so it CANNOT accidentally pass by knowing p: the
+   * coefficients are generated inside a closure and only the commitment escapes.
+   */
+  it('tau alone is enough — the forger never sees the polynomial', () => {
+    const c = runCeremony(toxic(3))
+    const tau = recoverTau(c)!
+
+    const { C, trueY } = (() => {
+      const hidden = Array.from({ length: 8 }, () => frRandom())
+      return { C: commit(c.srs, hidden), trueY: polyEval(hidden, 31n) }
+    })()
+
+    const lie = Fr.add(trueY, 7n)
+    const forged = forgeOpening({ srs: c.srs, commitment: C, tau, z: 31n, claimedY: lie })
+    expect(forged.neededThePolynomial).toBe(false)
+    expect(verify(c.srs, C, 31n, lie, forged.proof).ok).toBe(true)
+    expect(lie).not.toBe(trueY)
   })
 
   it('the same commitment still opens honestly — the forgery adds a lie, it does not corrupt the commitment', () => {
@@ -214,7 +297,7 @@ describe('Attack 1 — forging an opening with a recovered trapdoor', () => {
     const z = 5n
     const honestProof = open(c.srs, P, z)
     expect(verify(c.srs, C, z, honestProof.y, honestProof).ok).toBe(true)
-    const forged = forgeOpening({ srs: c.srs, coefficients: P, tau, z, claimedY: 1n })
+    const forged = forgeOpening({ srs: c.srs, commitment: C, tau, z, claimedY: 1n })
     expect(verify(c.srs, C, z, 1n, forged.proof).ok).toBe(true)
     // Both accepted, from ONE commitment, at ONE point, for TWO values. That is
     // a genuine binding break, and it is what knowing tau costs.
@@ -226,24 +309,29 @@ describe('Attack 1 — forging an opening with a recovered trapdoor', () => {
     const tau = recoverTau(c)!
     const C = commit(c.srs, P)
     for (const lie of [0n, 1n, 42n, frRandom()]) {
-      const forged = forgeOpening({ srs: c.srs, coefficients: P, tau, z: 7n, claimedY: lie })
+      const forged = forgeOpening({ srs: c.srs, commitment: C, tau, z: 7n, claimedY: lie })
       expect(verify(c.srs, C, 7n, lie, forged.proof).ok).toBe(true)
     }
   })
 
-  it('the forged witness is exactly (p(tau) - y)/(tau - z) in the exponent', () => {
+  it('the forged witness is exactly (tau - z)^-1 * (C - [y]1)', () => {
     const c = runCeremony(toxic(2))
     const tau = recoverTau(c)!
-    const forged = forgeOpening({ srs: c.srs, coefficients: P, tau, z: 7n, claimedY: 3n })
-    const expected = Fr.mul(Fr.sub(polyEval(P, tau), 3n), Fr.inv(Fr.sub(tau, 7n)))
-    expect(forged.witnessScalar).toBe(expected)
-    expect(forged.proof.witness.equals(g1Mul(G1.BASE, expected))).toBe(true)
+    const C = commit(c.srs, P)
+    const forged = forgeOpening({ srs: c.srs, commitment: C, tau, z: 7n, claimedY: 3n })
+    expect(forged.inverse).toBe(Fr.inv(Fr.sub(tau, 7n)))
+    // Independent re-derivation, in the exponent this time: because we happen
+    // to know p here, the same point must equal [(p(tau) - 3)/(tau - 7)]1.
+    const inExponent = Fr.mul(Fr.sub(polyEval(P, tau), 3n), Fr.inv(Fr.sub(tau, 7n)))
+    expect(forged.proof.witness.equals(g1Mul(G1.BASE, inExponent))).toBe(true)
   })
 
   it('refuses the degenerate z = tau', () => {
     const c = runCeremony(toxic(1))
     const tau = recoverTau(c)!
-    expect(() => forgeOpening({ srs: c.srs, coefficients: P, tau, z: tau, claimedY: 1n })).toThrow(/z = tau/)
+    expect(() =>
+      forgeOpening({ srs: c.srs, commitment: commit(c.srs, P), tau, z: tau, claimedY: 1n }),
+    ).toThrow(/z = tau/)
   })
 
   it('without a trapdoor there is nothing to forge from', () => {

@@ -209,10 +209,11 @@ export async function assertSingleBanner(page: Page): Promise<void> {
 /**
  * List semantics survive their styling.
  *
- * This lab's lists are plain `<ul>`s in the scope card and the Groth16 act,
- * with their implicit roles intact - no `list-style: none` on any of them, so
- * nothing here needs the explicit `role="list"` compensation Safari and
- * VoiceOver require when that declaration is present.
+ * This lab's lists are the plain `<ul>`s in the scope card - what is real, what
+ * is not, and what the page does NOT prove - with their implicit roles intact.
+ * None of them carries `list-style: none`, so nothing here needs the explicit
+ * `role="list"` compensation Safari and VoiceOver require when that
+ * declaration is present.
  *
  * The assertion is therefore about what must NOT appear: any explicit role on
  * a `ul`/`ol` must be `list` (any other value orphans every `<li>` under it),
@@ -646,7 +647,24 @@ export function expectBaselineNotStale(): void {
  *  - no focusable element that paints nothing — WCAG 2.4.3/2.4.7.
  *  - reflow — WCAG 1.4.10, which axe has no rule for at all.
  */
+/**
+ * How many states this drive has scanned.
+ *
+ * Asserted by the spec at the end of each run. A gate's coverage is the number
+ * of distinct renderings it looked at, and that number is otherwise invisible:
+ * a refactor that quietly dropped half the drive would still report a green
+ * run, and the only tell would be that it finished faster - which nobody
+ * notices. Pinning the count turns "the drive got shorter" into a failure.
+ */
+export let scansPerformed = 0;
+
+export function resetScanCount(): void {
+  scansPerformed = 0;
+}
+
 export async function scan(page: Page, label: string): Promise<void> {
+  scansPerformed += 1;
+  const started = Date.now();
   await settle(page);
   await expectNotBlank(page, label);
   // TWO axe runs, deliberately, and this is not a style choice.
@@ -661,10 +679,13 @@ export async function scan(page: Page, label: string): Promise<void> {
   // axe-core 4.12's 105 rule definitions; the chained form executes 4.
   //
   // The landmark four are still wanted because they are best-practice rather
-  // than WCAG-tagged, so `withTags` alone does not reach them — and this page
-  // has the shape they catch: a sticky `<header role="banner">` above a
-  // `<div id="app">` holding an `<aside class="cl-hero-why">`, two `<nav>`s
-  // (the shared actions and the tablist wrapper), one `<main>` and a footer.
+  // than WCAG-tagged, so `withTags` alone does not reach them - and this page
+  // has exactly the shape they catch: a sticky `<header role="banner">` with
+  // one `<nav>` inside it, then a `<div id="app">` holding one `<main>`, a
+  // `<header class="cl-hero">` that the shared bar's script demotes to
+  // `role="group"` so it does not become a second banner, an
+  // `<aside class="cl-hero-why">` nested inside that hero, and a `<footer>`
+  // that is a sibling of `<main>` rather than a child of it.
   const wcag = await new AxeBuilder({ page }).withTags(TAGS).analyze();
   const landmarks = await new AxeBuilder({ page })
     .withRules([
@@ -721,6 +742,9 @@ export async function scan(page: Page, label: string): Promise<void> {
   await soft(() => expectScrollersReachable(page, label));
   await soft(() => expectNoInvisibleFocusTargets(page, label));
   await soft(() => expectNoHorizontalOverflow(page, label));
+  if (process.env.A11Y_TIMING) {
+    console.log(`[scan ${scansPerformed}] ${Date.now() - started}ms — ${label}`);
+  }
 }
 
 // ── The drive ───────────────────────────────────────────────────────────────
@@ -808,6 +832,21 @@ export async function driveAllStates(page: Page, theme: string): Promise<void> {
   await page.getByRole('button', { name: 'Use the true value p(z)' }).click();
   await expect(page.locator('#open-y')).toHaveValue('5340373');
   await expect(page.locator('#open-y')).not.toHaveAttribute('aria-invalid', 'true');
+
+  // ── The four tamper renderings, one per failure code ────────────────────
+  // Each of these repaints the tamper verdict in the `rejected` tone with a
+  // different code and a different detail list. None of them is reachable
+  // without pressing the button, so none of them had ever been scanned.
+  for (const [id, code] of [
+    ['#tamper-value', 'PAIRING_FAIL'],
+    ['#tamper-point', 'POINT_MISMATCH'],
+    ['#tamper-setup', 'SETUP_MISMATCH'],
+    ['#tamper-bytes', 'MALFORMED_PROOF'],
+  ] as const) {
+    await page.locator(id).click();
+    await expect(page.locator('#tamper-verdict')).toContainText(code);
+    await scanAt(`Act 2: a proof broken by ${id.replace('#tamper-', '')} — ${code}`);
+  }
 
   // ── A retired verdict: the inputs moved under a fresh result ────────────
   await page.locator('#open-verify').click();

@@ -3,15 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%E2%9A%92%EF%B8%8F</text></svg>" />
-    <meta
-      name="description"
-      content="Interactive demo of polynomial commitment schemes: KZG on BLS12-381, a Bulletproofs-style inner-product argument, and FRI, all committing to the same polynomial, with a real powers-of-tau ceremony, a trapdoor forgery, and an unenforced degree bound."
-    />
-    <meta name="author" content="systemslibrarian" />
-    <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#07060d" />
     <script>
       // Dark is the only theme. Pin it before first paint, and overwrite any
       // 'light' a visitor stored back when the header carried a theme toggle.
@@ -22,6 +13,15 @@
         document.documentElement.setAttribute('data-theme', 'dark');
       })();
     </script>
+    <link rel="icon" type="image/svg+xml"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%E2%9A%92%EF%B8%8F</text></svg>" />
+    <meta
+      name="description"
+      content="Interactive demo of polynomial commitment schemes: KZG on BLS12-381, a Bulletproofs-style inner-product argument, and FRI, all committing to the same polynomial, with a real powers-of-tau ceremony, a trapdoor forgery, and an unenforced degree bound."
+    />
+    <meta name="author" content="systemslibrarian" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#07060d" />
     <title>Polynomial Forge — crypto-lab</title>
   </head>
   <body>

@@ -151,6 +151,12 @@ export function actDegree(): HTMLElement {
       const z0 = CONSTRAINTS.xs[0]
       const trueValue = polyEval(witness.cheating, z0)
       const lie = Fr.add(trueValue, 1n)
+      // BOTH halves are real verifications. The honest opening used to be a
+      // hardcoded '[+] ACCEPTED' in this table, which meant the row asserting
+      // binding could not have reported a binding failure even if there were
+      // one - the exact shape this act exists to warn about.
+      const firstOpening = open(srs, witness.cheating, z0)
+      const firstResult = verify(srs, C, z0, trueValue, firstOpening)
       const secondOpening = attemptOpenAtClaimedValue(srs, witness.cheating, z0, lie)
       const secondResult = verify(srs, C, z0, lie, secondOpening.proof)
 
@@ -175,7 +181,10 @@ export function actDegree(): HTMLElement {
               cells: [
                 `The cheating commitment opens to ${scalar(trueValue)} at z = ${scalar(z0)}`,
                 'a real KZG verification',
-                el('span', { class: 'tag-ok', text: '[+] ACCEPTED' }),
+                el('span', {
+                  class: firstResult.ok ? 'tag-ok' : 'tag-alarm',
+                  text: firstResult.ok ? '[+] ACCEPTED' : `[!] ${firstResult.ok ? '' : firstResult.code}`,
+                }),
               ] as (string | Node)[],
             },
             {

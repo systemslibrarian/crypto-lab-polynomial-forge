@@ -141,11 +141,14 @@ is byte-for-byte the same. The mitigation is not a better check — it is more p
 "at least one was honest and careful" becomes a cheap assumption. It is still an assumption about
 people.
 
-**Knowing τ destroys binding entirely.** With τ as a scalar the verification equation stops being a
-test and becomes an equation you can solve: `π = [(p(τ) − y)/(τ − z)]₁` satisfies it for any `y`.
-The forger has to be the prover (or know the polynomial), because recovering `p(τ)` from `C` is a
-discrete log — but a prover who compromised the ceremony can open one commitment to any value at
-any point.
+**Knowing τ destroys binding entirely, for everyone.** With τ known, the verification equation
+stops being a test and becomes an equation you can solve: `π = (τ − z)⁻¹ · (C − [y]₁)` satisfies it
+for any `y`. Read that right-hand side carefully — it is one subtraction and one scalar
+multiplication on points the forger already has. It never extracts `p(τ)` from `C`, so it never
+solves a discrete log, so **the forger does not need to know the committed polynomial at all**. A
+commitment somebody else made, to data the forger has never seen, can be opened to any value at any
+point. Exhibit 4 does exactly that, and `ceremony.test.ts` pins it with a test that forges against a
+commitment whose polynomial is generated inside a closure and never handed to the forging code.
 
 **A commitment binds a polynomial, not a statement about it (NEG-1).** Nothing in the KZG
 verification equation mentions degree. A verifier that checks only openings has checked that the
@@ -230,7 +233,7 @@ npm run test:claims  # the claims suite: does the page tell the truth
 
 ## Build & Verify
 
-Vite + TypeScript, static, no backend. `npm test` runs **291 unit tests** across 11 files.
+Vite + TypeScript, static, no backend. `npm test` runs **300 unit tests** across 11 files.
 
 **Known-answer tests.** `src/crypto/__vectors__/eip4844.json` pins the Ethereum EIP-4844 trusted
 setup prefix and all **122 published `verify_kzg_proof` vectors**, recorded with the repository,

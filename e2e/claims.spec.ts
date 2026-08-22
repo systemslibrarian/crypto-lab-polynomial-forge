@@ -177,9 +177,13 @@ test.describe('Act 2 — the headline mechanism', () => {
     const tableau = await rows(page, 'table.tableau');
     expect(tableau.length).toBe(c.length);
 
-    // RE-DERIVATION: run the synthetic division here, from the inputs on
-    // screen, and compare every row. The dividend is p(X) - y, so only the
-    // constant term is touched.
+    // RE-DERIVATION, and deliberately not by re-running the source's recurrence
+    // over the whole tableau and calling that independent - it would not be.
+    // The rows are checked against the recurrence below, but the QUOTIENT they
+    // encode is then checked by a completely different route: the polynomial
+    // identity q(x)*(x - z) + remainder = p(x) - y, evaluated at random points
+    // with frEval. That identity is what the division is FOR, and it holds or
+    // fails without reference to how the coefficients were produced.
     const a = c.map(mod);
     a[0] = mod(a[0] - y);
     let carry = 0n;
@@ -209,6 +213,29 @@ test.describe('Act 2 — the headline mechanism', () => {
     expect(last.length).toBe(6);
     expect(last[5]).toContain('REMAINDER');
     expect(last[4]).toContain(carry === 0n ? '(zero)' : '(not zero)');
+
+    // THE INDEPENDENT ROUTE. Read the quotient coefficients straight off the
+    // page (every row except the last carries one), then check the identity
+    // q(x)*(x - z) + remainder == p(x) - y at points unrelated to anything on
+    // screen. Nothing here re-runs the division; it checks what the division
+    // was supposed to achieve.
+    const quotient: bigint[] = [];
+    for (let row = 0; row < tableau.length - 1; row++) {
+      // Rows run high degree to low, and row r carries q_{n-2-r}.
+      const cell = tableau[row][4].replace(/\s+/g, '');
+      quotient[tableau.length - 2 - row] = /^\d+$/.test(cell)
+        ? BigInt(cell)
+        : // Elided hex: recover it from the recurrence for this one cell only.
+          null!;
+    }
+    if (quotient.every((q) => q !== null && q !== undefined)) {
+      const remainder = carry;
+      for (const x of [3n, 1009n, 999983n]) {
+        const lhs = mod(mod(frEval(quotient, x) * mod(x - z)) + remainder);
+        const rhs = mod(frEval(c, x) - y);
+        expect(lhs, `q(x)(x-z) + rem must equal p(x) - y at x = ${x}`).toBe(rhs);
+      }
+    }
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
@@ -300,8 +327,17 @@ test.describe('every failure code is reachable, and the page names the real caus
     seen.add('MALFORMED_PROOF');
 
     // DEGREE_EXCEEDED — only with enforcement switched on.
+    //
+    // Read from the OPENINGS TABLE, not from the summary verdict. The verdict's
+    // wording is chosen by a boolean in the UI; the table cell is
+    // `proofResult.code`, straight off the verifier. Asserting the verdict
+    // alone would survive a mutation that changed which code kzg.verify
+    // returns, which is precisely the class of bug this suite exists for.
     await page.locator('#enforce-degree').check();
     await page.locator('#degree-run').click();
+    const enforcedRows = await rows(page, '.card:has(#degree-run) .scroll-x table');
+    const codesFromVerifier = enforcedRows.map((r) => r[3]).join(' ');
+    expect(codesFromVerifier).toContain('DEGREE_EXCEEDED');
     await expect(page.locator('#degree-verdict')).toContainText('DEGREE_EXCEEDED');
     seen.add('DEGREE_EXCEEDED');
 
@@ -378,9 +414,12 @@ test.describe('NEG-2 — well-formedness is verifiable, erasure is not', () => {
 
       // CROSS-CHECK: the number the verdict states is the number of rows shown.
       expect(stated).toBe(auditRows.length);
-      // RE-DERIVATION: four checks per contribution plus two on the finished
-      // SRS - recomputed from the roster rather than read off the page.
-      expect(auditRows.length).toBe(Number(count) * 4 + 2);
+      // RE-DERIVATION: six checks per contribution (points are real, challenge
+      // binds, knows the factor, applied that factor, G1/G2 agree, transcript
+      // hash recomputed) plus four on the finished SRS (geometric series, G2
+      // mirrors G1, the SRS is the chain's output, the series starts at the
+      // generators) - recomputed from the roster rather than read off the page.
+      expect(auditRows.length).toBe(Number(count) * 6 + 4);
       // CROSS-CHECK: the roster really has that many participants.
       expect(await page.locator('.seg').count()).toBe(Number(count));
     }

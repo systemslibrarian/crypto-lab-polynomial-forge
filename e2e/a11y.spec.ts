@@ -5,8 +5,17 @@ import {
   expectBaselineNotStale,
   NARROW,
   reportCollected,
+  resetScanCount,
+  scansPerformed,
   watchPageErrors,
 } from './gate';
+
+/**
+ * Every rendering `driveAllStates` walks. Asserted after each run, because a
+ * green gate says nothing about how much of the page it looked at - and a
+ * refactor that dropped half the drive would still be green, just faster.
+ */
+const EXPECTED_SCANS = 28;
 
 /**
  * WCAG 2.1 A/AA regression gate.
@@ -24,9 +33,11 @@ import {
  * ceremony participant switched to keeping their factor and the participant
  * count changed, each re-running the audit; the all-toxic ceremony whose
  * transcript still verifies; a forged opening the real pairing accepts, which
- * is this page's only alarm-red state; the same forgery refused once one
- * factor is destroyed; an over-degree witness whose every opening is accepted
- * with no failure code available; the same witness refused with
+ * is one of the page's two alarm-red states; the same forgery refused once one
+ * factor is destroyed; the four tamper buttons, each breaking a real proof a
+ * different way and producing a different failure code; an over-degree witness
+ * whose every opening is accepted with no failure code available - the second
+ * alarm state; the same witness refused with
  * DEGREE_EXCEEDED once enforcement is switched on; all three commitment
  * schemes measured into the comparison table; three hover states; and three
  * focus rings. Every one of those is scanned at desktop and phone width.
@@ -42,8 +53,10 @@ for (const theme of ['dark'] as const) {
   test(`no WCAG A/AA violations in ${theme} theme`, async ({ page }) => {
     test.setTimeout(1_800_000);
     const errors = watchPageErrors(page);
+    resetScanCount();
     await boot(page, theme);
     await driveAllStates(page, theme);
+    expect(scansPerformed, 'states scanned').toBe(EXPECTED_SCANS);
     expect(errors, errors.join('\n')).toEqual([]);
     expectBaselineNotStale();
     reportCollected();
@@ -53,8 +66,10 @@ for (const theme of ['dark'] as const) {
     test.setTimeout(1_800_000);
     const errors = watchPageErrors(page);
     await page.setViewportSize(NARROW);
+    resetScanCount();
     await boot(page, theme);
     await driveAllStates(page, `${theme} @380px`);
+    expect(scansPerformed, 'states scanned').toBe(EXPECTED_SCANS);
     expect(errors, errors.join('\n')).toEqual([]);
     expectBaselineNotStale();
     reportCollected();

@@ -274,6 +274,32 @@ export function auditTranscript(ceremony: Ceremony): TranscriptAudit {
   let prevHash = 'crypto-lab-polynomial-forge/powers-of-tau/genesis'
 
   for (const c of contributions) {
+    // 0. Every point in this contribution is a valid, prime-order, non-identity
+    //    point. Skipping this is how an all-identity SRS passes: e(0, Q) is the
+    //    identity of G_T, so a series check over identity points holds
+    //    vacuously while the "SRS" secures nothing at all.
+    let pointsOk = true
+    let pointDetail = 'every published point is a valid, non-identity, prime-order point'
+    try {
+      for (const P of [c.s, c.sx, ...c.g1Powers]) {
+        if (P.is0()) throw new Error('a G1 point is the identity')
+        P.assertValidity()
+      }
+      for (const P of [c.h, c.hx, ...c.g2Powers]) {
+        if (P.is0()) throw new Error('a G2 point is the identity')
+        P.assertValidity()
+      }
+    } catch (err) {
+      pointsOk = false
+      pointDetail = err instanceof Error ? err.message : String(err)
+    }
+    rows.push({
+      label: `#${c.index} ${c.name}: the points are real`,
+      equation: 'on-curve, prime-order, and never the identity',
+      ok: pointsOk,
+      detail: pointDetail,
+    })
+
     // 1. The challenge point really is derived from the transcript so far.
     const expectedChallenge = hashPoints(prevHash, c.s, c.sx)
     const expectedH = bls12_381.G2.hashToCurve(expectedChallenge, { DST: CEREMONY_DST }) as unknown as G2Point
@@ -318,9 +344,58 @@ export function auditTranscript(ceremony: Ceremony): TranscriptAudit {
       detail: crossOk ? 'both groups carry the same tau' : 'the G1 and G2 halves disagree',
     })
 
+    // 5. The declared transcript hash is RECOMPUTED rather than believed. The
+    //    next contribution's challenge is derived from it, so a contributor who
+    //    could declare an arbitrary hash could steer the challenge their
+    //    successor is bound to.
+    const expectedHash = bytesToHex(
+      sha256(concatBytes([expectedChallenge, c.g1Powers[1].toBytes(), c.g2Powers[1].toBytes()])),
+    )
+    const hashOk = expectedHash === c.transcriptHash
+    rows.push({
+      label: `#${c.index} ${c.name}: the transcript hash is the one the record implies`,
+      equation: 'H(challenge || [tau]1 || [tau]2)',
+      ok: hashOk,
+      detail: hashOk
+        ? 'recomputed from the published points, not taken on trust'
+        : 'the declared hash does not match the published points',
+    })
+
     prev = { g1Powers: c.g1Powers, g2Powers: c.g2Powers }
     prevHash = c.transcriptHash
   }
+
+  // 6. The SRS being audited IS the output of the last contribution. Without
+  //    this every check above can pass over a contribution chain that has
+  //    nothing to do with the reference string actually being used - which is
+  //    the cheapest possible substitution attack on an audit.
+  const last = contributions[contributions.length - 1]
+  const srsMatchesChain =
+    ceremony.srs.g1Powers.length === last.g1Powers.length &&
+    ceremony.srs.g2Powers.length === last.g2Powers.length &&
+    ceremony.srs.g1Powers.every((P, i) => P.equals(last.g1Powers[i])) &&
+    ceremony.srs.g2Powers.every((P, i) => P.equals(last.g2Powers[i]))
+  rows.push({
+    label: 'final SRS: it is the output of the last contribution',
+    equation: 'srs == contribution[n].powers, point for point',
+    ok: srsMatchesChain,
+    detail: srsMatchesChain
+      ? 'the reference string in use is the one the chain above produced'
+      : 'the reference string does not match the last contribution - the chain audits something else',
+  })
+
+  // 7. The series starts where it must: [tau^0] is the generator in both
+  //    groups. An SRS whose zeroth power is anything else is not powers of tau.
+  const basesOk =
+    ceremony.srs.g1Powers[0].equals(G1.BASE) && ceremony.srs.g2Powers[0].equals(G2.BASE)
+  rows.push({
+    label: 'final SRS: the series starts at the generators',
+    equation: '[tau^0]1 = g1 and [tau^0]2 = g2',
+    ok: basesOk,
+    detail: basesOk
+      ? 'tau^0 = 1, so the zeroth power must be the generator itself'
+      : 'the zeroth power is not the generator, so these are not powers of anything',
+  })
 
   // 5. The finished SRS is a geometric series: consecutive powers line up.
   const { srs } = ceremony

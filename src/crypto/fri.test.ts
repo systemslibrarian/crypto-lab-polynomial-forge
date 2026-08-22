@@ -14,8 +14,17 @@ import {
   friProve,
   friSoundnessBits,
   friVerify,
+  serializeFriProof,
   squareDomain,
 } from './fri.js'
+
+/** Big-endian decode, written out here rather than imported, so the test does
+ *  not check the serialiser with the serialiser's own inverse. */
+function bytesToScalar(b: Uint8Array): bigint {
+  let v = 0n
+  for (const byte of b) v = (v << 8n) | BigInt(byte)
+  return v
+}
 import { polyEval, polyEvalDomain } from './poly.js'
 
 const P = [3n, 1n, 4n, 1n, 5n, 9n, 2n, 6n, 5n, 3n, 5n, 8n, 9n, 7n, 9n, 3n]
@@ -204,14 +213,24 @@ describe('FRI as a polynomial commitment', () => {
     expect(proof.queries.length).toBe(PARAMS.queries)
   })
 
-  it('reports a proof size that matches its own parts', () => {
+  it('the reported proof size is the length of a real serialisation', () => {
+    // Not a re-derivation of the same sum - the proof is actually serialised
+    // and the bytes counted, so a size function that believed the wrong thing
+    // about its own parts could not agree with this.
     const { proof } = friProve(P, 5n, PARAMS)
-    let expected = 32 + proof.layerRoots.length * 32 + proof.finalValues.length * 32 + 64
-    for (const q of proof.queries) {
-      expected += 4 + 64 + q.base.path.length * 32
-      for (const l of q.layers) expected += 64 + l.path.length * 32
-    }
-    expect(friProofBytes(proof)).toBe(expected)
+    const bytes = serializeFriProof(proof)
+    expect(friProofBytes(proof)).toBe(bytes.length)
+
+    // And every part really is there: the roots and every opened value are
+    // recoverable from the serialisation at the offsets the layout implies.
+    expect(bytes.slice(0, 32)).toEqual(proof.baseRoot)
+    let off = 32 + proof.layerRoots.length * 32
+    expect(bytesToScalar(bytes.slice(off, off + 32))).toBe(proof.z)
+    off += 32
+    expect(bytesToScalar(bytes.slice(off, off + 32))).toBe(proof.y)
+    // A proof with more queries must serialise longer, monotonically.
+    const bigger = friProve(P, 5n, { ...PARAMS, queries: PARAMS.queries + 4 })
+    expect(friProofBytes(bigger.proof)).toBeGreaterThan(friProofBytes(proof))
   })
 
   it('refuses a polynomial larger than the configured n', () => {
@@ -222,6 +241,24 @@ describe('FRI as a polynomial commitment', () => {
     const s = friSoundnessBits(PARAMS)
     expect(s.heuristicBits).toBe(Math.round(PARAMS.queries * Math.log2(PARAMS.blowup)))
     expect(s.caveat).toMatch(/Not a security claim/)
+  })
+
+  it('refuses a proof that declares its own, weaker parameters', () => {
+    // The soundness argument IS the parameter set. A verifier that reads
+    // blowup and query count out of the proof has let the prover choose its own
+    // security level - a proof declaring one query would verify in one check.
+    const { commitment, proof } = friProve(P, 5n, PARAMS)
+    const weakened = { ...proof, params: { ...PARAMS, queries: 1 } }
+    const result = friVerify(commitment.root, 5n, proof.y, weakened, PARAMS)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('SETUP_MISMATCH')
+
+    // And a proof built honestly under those weaker parameters is refused too,
+    // rather than being verified on its own terms.
+    const weakProof = friProve(P, 5n, { ...PARAMS, queries: 1 })
+    const result2 = friVerify(weakProof.commitment.root, 5n, weakProof.proof.y, weakProof.proof, PARAMS)
+    expect(result2.ok).toBe(false)
+    if (!result2.ok) expect(result2.code).toBe('SETUP_MISMATCH')
   })
 
   it('a short polynomial still opens correctly', () => {

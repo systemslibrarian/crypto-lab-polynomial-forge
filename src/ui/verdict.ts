@@ -66,8 +66,15 @@ export function verdictBox(id: string, initial?: { kind: VerdictKind; label: str
       appendRich(text, bodyText)
     },
     retire(reason) {
+      // Retirement is the REMOVAL of a result, not the arrival of one, and a
+      // single keystroke can retire four verdicts at once. Announcing all of
+      // them would bury the reader in polite interruptions about things that
+      // just stopped being true. The live region is silenced for the swap and
+      // restored afterwards, so the next real result still announces.
+      root.setAttribute('aria-live', 'off')
       view.set('idle', 'RETIRED', reason)
       root.dataset.kind = 'idle'
+      root.setAttribute('aria-live', 'polite')
     },
   }
 

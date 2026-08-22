@@ -186,8 +186,12 @@ export function ipaScalarVector(challenges: readonly bigint[], n: number): bigin
   for (let i = 0; i < n; i++) {
     let acc = 1n
     for (let j = 0; j < rounds; j++) {
-      // Round j splits on the (rounds-1-j)-th bit: the first round separates the
-      // low half from the high half of the whole vector.
+      // Round j is the j-th split from the TOP: round 0 separates the low half
+      // of the whole vector from the high half, which is bit (rounds-1-j) of i
+      // - the most significant bit first. Getting this backwards produces a
+      // scalar vector that still has the right multiset of entries, so a naive
+      // test comparing sums would not notice; ipa.test.ts folds the generators
+      // by hand instead and compares the resulting POINT.
       const bit = (i >> (rounds - 1 - j)) & 1
       acc = Fr.mul(acc, bit === 1 ? challenges[j] : inv[j])
     }

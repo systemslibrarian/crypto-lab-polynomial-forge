@@ -32,8 +32,9 @@
  *
  * VERIFY. Spot-check. Pick random positions, ask for the pair (q(x), q(-x)) at
  * every layer with Merkle proofs, and check that each layer really is the fold
- * of the one before it - plus, at the bottom layer, that q(x)*(x - z) = p(x) - y
- * so the low-degree object being tested is the one tied to the commitment.
+ * of the one before it - plus, at the BASE layer where p itself was committed,
+ * that q(x)*(x - z) = p(x) - y, so the low-degree object being tested is the
+ * one tied to the commitment rather than some unrelated low-degree function.
  *
  * SOUNDNESS - READ THIS BEFORE BELIEVING A NUMBER. The parameters below are
  * chosen so the demo runs instantly in a browser, not to hit a security target.
@@ -44,7 +45,7 @@
  * as a heuristic. Real deployments target 80-128 bits and add grinding; this
  * one does not.
  */
-import { Fr, frFromBytesReduce, frOf, frToBytes, rootOfUnity } from './fr.js'
+import { Fr, frFromBytesReduce, frInvertBatch, frOf, frToBytes, rootOfUnity } from './fr.js'
 import { sha256 } from '@noble/hashes/sha2.js'
 import { polyEval, polyDegree, interpolate, type Poly } from './poly.js'
 import { Transcript } from './transcript.js'
@@ -56,6 +57,7 @@ import {
   type MerkleOpening,
   type MerkleTree,
 } from './merkle.js'
+
 import { bytesToHex } from './bls.js'
 import { fail, pass, type VerifyResult } from './codes.js'
 
@@ -152,13 +154,19 @@ export function squareDomain(d: Domain): Domain {
 export function foldLayer(values: readonly bigint[], domain: Domain, beta: bigint): bigint[] {
   const half = values.length / 2
   const out = new Array<bigint>(half)
-  const two = 2n
+  // One batched inversion for the whole layer instead of one per point. A field
+  // inversion is ~200x a multiplication, so the naive form spends most of the
+  // prover's time here - and the comparison act TIMES this code, so a needless
+  // 200x is not a micro-optimisation, it is a wrong number on the page.
+  const twoX = new Array<bigint>(half)
+  for (let j = 0; j < half; j++) twoX[j] = Fr.mul(2n, domain.points[j])
+  const invTwoX = frInvertBatch(twoX)
+  const invTwo = Fr.inv(2n)
   for (let j = 0; j < half; j++) {
-    const x = domain.points[j]
     const fx = values[j]
     const fnx = values[j + half]
-    const even = Fr.div(Fr.add(fx, fnx), two)
-    const odd = Fr.div(Fr.sub(fx, fnx), Fr.mul(two, x))
+    const even = Fr.mul(Fr.add(fx, fnx), invTwo)
+    const odd = Fr.mul(Fr.sub(fx, fnx), invTwoX[j])
     out[j] = Fr.add(even, Fr.mul(beta, odd))
   }
   return out
@@ -293,8 +301,35 @@ export function friProve(
   }
 }
 
-export function friVerify(root: Uint8Array, z: bigint, y: bigint, proof: FriProof): VerifyResult {
-  const params = proof.params
+/**
+ * Verify a FRI opening.
+ *
+ * `expected` is the VERIFIER'S parameter set, and it is not optional in spirit:
+ * blowup, query count and final-layer size are the entire soundness argument,
+ * and a verifier that reads them out of the proof has let the prover choose its
+ * own security level. A proof declaring one query would then verify in one
+ * check and prove almost nothing. The default exists only so callers that
+ * genuinely mean the shipped parameters do not have to repeat them.
+ */
+export function friVerify(
+  root: Uint8Array,
+  z: bigint,
+  y: bigint,
+  proof: FriProof,
+  expected: FriParams = DEFAULT_FRI_PARAMS,
+): VerifyResult {
+  const params = expected
+  if (
+    proof.params.n !== expected.n ||
+    proof.params.blowup !== expected.blowup ||
+    proof.params.queries !== expected.queries ||
+    proof.params.finalSize !== expected.finalSize
+  ) {
+    return fail(
+      'SETUP_MISMATCH',
+      `proof declares n=${proof.params.n} blowup=${proof.params.blowup} queries=${proof.params.queries} final=${proof.params.finalSize}, verifier requires n=${expected.n} blowup=${expected.blowup} queries=${expected.queries} final=${expected.finalSize}`,
+    )
+  }
   if (bytesToHex(root) !== bytesToHex(proof.baseRoot)) {
     return fail('SETUP_MISMATCH', 'the proof was built against a different commitment root')
   }
@@ -317,6 +352,12 @@ export function friVerify(root: Uint8Array, z: bigint, y: bigint, proof: FriProo
     d = squareDomain(d)
   }
   const finalDomain = d
+  if (domains.length === 0) {
+    // Would mean the evaluation domain is already at the final size, so there is
+    // nothing to fold and nothing to test. Refuse rather than index into an
+    // empty layer list and throw.
+    return fail('MALFORMED_PROOF', 'these parameters leave no folding layers; there is no low-degree test to run')
+  }
   if (proof.layerRoots.length !== domains.length) {
     return fail('MALFORMED_PROOF', `expected ${domains.length} layer roots, got ${proof.layerRoots.length}`)
   }
@@ -420,19 +461,53 @@ export function friVerify(root: Uint8Array, z: bigint, y: bigint, proof: FriProo
   return pass(`all ${params.queries} spot checks agree with every folding layer and with the committed evaluations`)
 }
 
-/** Serialised size of a FRI proof, counted field by field. */
-export function friProofBytes(proof: FriProof): number {
-  const scalar = 32
-  let total = MERKLE_DIGEST_BYTES // base root
-  total += proof.layerRoots.length * MERKLE_DIGEST_BYTES
-  total += proof.finalValues.length * scalar
-  total += 2 * scalar // z, y
+/**
+ * Serialise a FRI proof to the bytes it would actually travel as.
+ *
+ * This exists so the size the comparison act prints is MEASURED. A "size"
+ * function that adds up what the author believes the parts to be will agree
+ * with itself whatever the parts really are, and a test that re-derives the
+ * same sum agrees with the mistake. `friProofBytes` is defined as this
+ * function's output length, and `fri.test.ts` checks that it is.
+ *
+ * Layout: baseRoot || layerRoots || z || y || finalValues || per query
+ * (position:u32 || lo || hi || path for the base, then the same per layer).
+ * Nothing here is a wire format anyone else parses; it is an honest accounting.
+ */
+export function serializeFriProof(proof: FriProof): Uint8Array {
+  const parts: Uint8Array[] = []
+  parts.push(proof.baseRoot)
+  for (const r of proof.layerRoots) parts.push(r)
+  parts.push(frToBytes(proof.z))
+  parts.push(frToBytes(proof.y))
+  for (const v of proof.finalValues) parts.push(frToBytes(v))
   for (const q of proof.queries) {
-    total += 4 // position
-    total += 2 * scalar + q.base.path.length * MERKLE_DIGEST_BYTES
-    for (const o of q.layers) total += 2 * scalar + o.path.length * MERKLE_DIGEST_BYTES
+    const pos = new Uint8Array(4)
+    pos[0] = (q.position >>> 24) & 0xff
+    pos[1] = (q.position >>> 16) & 0xff
+    pos[2] = (q.position >>> 8) & 0xff
+    pos[3] = q.position & 0xff
+    parts.push(pos)
+    for (const o of [q.base, ...q.layers]) {
+      parts.push(frToBytes(o.lo))
+      parts.push(frToBytes(o.hi))
+      for (const node of o.path) parts.push(node)
+    }
   }
-  return total
+  let total = 0
+  for (const p of parts) total += p.length
+  const out = new Uint8Array(total)
+  let off = 0
+  for (const p of parts) {
+    out.set(p, off)
+    off += p.length
+  }
+  return out
+}
+
+/** Size of a FRI proof, defined as the length of its serialisation. */
+export function friProofBytes(proof: FriProof): number {
+  return serializeFriProof(proof).length
 }
 
 export const FRI_COMMITMENT_BYTES = MERKLE_DIGEST_BYTES

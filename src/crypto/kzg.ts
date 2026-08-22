@@ -33,7 +33,15 @@ import {
   g1FromBytesStrict,
   bytesToHex,
 } from './bls.js'
-import { divideByLinear, polyDegree, polyEval, polyShift, type DivisionResult, type Poly } from './poly.js'
+import {
+  divideByLinear,
+  polyDegree,
+  polyEval,
+  polyShift,
+  polyTrim,
+  type DivisionResult,
+  type Poly,
+} from './poly.js'
 import { fail, pass, type VerifyResult } from './codes.js'
 import { sha256 } from '@noble/hashes/sha2.js'
 
@@ -154,7 +162,17 @@ export function open(
 ): KzgProof {
   const zz = frOf(z)
   const y = polyEval(coefficients, zz)
-  const { quotient, remainder } = divideByLinear(coefficients, zz, y)
+  // Trim trailing zeros first. `commit` accepts a zero-padded vector as long as
+  // its DEGREE fits the SRS, so `open` has to agree: without this, a padded
+  // array produces a quotient longer than the SRS and the multi-scalar
+  // multiplication fails with a length mismatch rather than a useful error.
+  const trimmed = polyTrim(coefficients)
+  if (polyDegree(trimmed) > srs.maxDegree) {
+    throw new RangeError(
+      `polynomial of degree ${polyDegree(trimmed)} exceeds this SRS (max ${srs.maxDegree})`,
+    )
+  }
+  const { quotient, remainder } = divideByLinear(trimmed, zz, y)
   if (!Fr.is0(remainder)) {
     // Unreachable with y = p(z); kept as a live assertion because the entire
     // scheme rests on it.
@@ -168,7 +186,7 @@ export function open(
     const d = options.degreeBound
     const shift = srs.maxDegree - d
     if (shift < 0) throw new RangeError('degree bound exceeds the SRS maximum degree')
-    const deg = polyDegree(coefficients)
+    const deg = polyDegree(trimmed)
     if (deg + shift > srs.maxDegree) {
       // An over-degree polynomial would need [tau^k]1 for k > D, which the SRS
       // does not contain. That impossibility IS the degree-bound argument.
@@ -176,7 +194,7 @@ export function open(
         `cannot build a shifted commitment for degree ${deg} at bound ${d}: it needs tau^${deg + shift}, beyond the SRS`,
       )
     }
-    const shiftedCoeffs = polyShift(coefficients, shift)
+    const shiftedCoeffs = polyShift(trimmed, shift)
     shifted = g1Msm(srs.g1Powers.slice(0, shiftedCoeffs.length), shiftedCoeffs)
     shiftedBound = d
   }
@@ -314,6 +332,33 @@ export function deserializeProof(bytes: Uint8Array, srsDigestValue: string): Kzg
   const y = frFromBytesStrict(bytes.subarray(FR_BYTES, FR_BYTES * 2))
   const witness = g1FromBytesStrict(bytes.subarray(FR_BYTES * 2))
   return { z, y, witness, srsDigest: srsDigestValue }
+}
+
+/**
+ * Parse and verify in one call, so a parse failure produces a real
+ * `VerifyResult` with a real code rather than an exception a caller has to
+ * translate into one by hand.
+ *
+ * This exists because the alternative is a UI that catches the parse error and
+ * prints the string 'MALFORMED_PROOF' itself - at which point the page is
+ * asserting a verdict rather than reporting one, and no test of the page can
+ * tell the difference between a working strict parser and a hardcoded label.
+ */
+export function verifySerialized(
+  srs: Srs,
+  commitment: G1Point,
+  z: bigint,
+  y: bigint,
+  bytes: Uint8Array,
+  options: VerifyOptions = {},
+): VerifyResult {
+  let proof: KzgProof
+  try {
+    proof = deserializeProof(bytes, srs.digest)
+  } catch (err) {
+    return fail('MALFORMED_PROOF', err instanceof Error ? err.message : String(err))
+  }
+  return verify(srs, commitment, z, y, proof, options)
 }
 
 /** Size of a KZG proof on the wire, for the comparison act. */

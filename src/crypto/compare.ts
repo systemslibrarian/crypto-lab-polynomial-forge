@@ -28,7 +28,7 @@ import {
   type FriParams,
 } from './fri.js'
 import { MERKLE_DIGEST_BYTES } from './merkle.js'
-import { polyEval } from './poly.js'
+import { polyDegree, polyEval } from './poly.js'
 
 export type SchemeId = 'kzg' | 'ipa' | 'fri'
 
@@ -120,7 +120,7 @@ export function runComparison(input: ComparisonInput): {
   // include a second commitment.
   const friC = timed(repeats, () => friCommit(coefficients, friParams))
   const friP = timed(repeats, () => friProve(coefficients, z, friParams, friC.value))
-  const friV = timed(repeats, () => friVerify(friC.value.root, z, y, friP.value.proof))
+  const friV = timed(repeats, () => friVerify(friC.value.root, z, y, friP.value.proof, friParams))
 
   const soundness = friSoundnessBits(friParams)
 
@@ -186,7 +186,7 @@ export function runComparison(input: ComparisonInput): {
 
   return {
     rows,
-    degree: coefficients.length - 1,
+    degree: polyDegree(coefficients),
     z,
     y,
     friHeuristicBits: soundness.heuristicBits,

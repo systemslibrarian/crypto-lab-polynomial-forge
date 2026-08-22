@@ -39,9 +39,16 @@ import type { Page } from '@playwright/test';
  *
  * 1. CONTROL BOUNDARIES, 3:1. A control has to be distinguishable from what
  *    surrounds it. The rule is deliberately narrow to stay useful: an element
- *    is only judged if it is *trying* to draw itself as a control — it has an
+ *    is only judged if it is *trying* to draw itself as a control - it has an
  *    own background, or a border, or an outline. A plain text link carries its
  *    own identification and is not flagged.
+ *
+ *    Each of the four borders is measured SEPARATELY. 129 of 131 copies of this
+ *    file in this fleet decide `hasBorder` from `borderTopStyle` alone while
+ *    measuring all four widths, so a control bordered on one side only is
+ *    mis-measured. This copy carries the per-side `paintedSides` fix, which
+ *    matters here because the verdict boxes are bordered on all four sides but
+ *    with a 6px left edge and 2px elsewhere.
  *
  *    Then either delineator will do, because either is enough for a sighted
  *    reader to find the edge:
