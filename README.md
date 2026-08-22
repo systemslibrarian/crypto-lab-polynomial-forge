@@ -233,7 +233,7 @@ npm run test:claims  # the claims suite: does the page tell the truth
 
 ## Build & Verify
 
-Vite + TypeScript, static, no backend. `npm test` runs **300 unit tests** across 11 files.
+Vite + TypeScript, static, no backend. `npm test` runs **302 unit tests** across 11 files.
 
 **Known-answer tests.** `src/crypto/__vectors__/eip4844.json` pins the Ethereum EIP-4844 trusted
 setup prefix and all **122 published `verify_kzg_proof` vectors**, recorded with the repository,

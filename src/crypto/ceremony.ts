@@ -270,6 +270,26 @@ export function auditTranscript(ceremony: Ceremony): TranscriptAudit {
   const rows: CheckRow[] = []
   const { contributions, maxDegree } = ceremony
 
+  // A transcript with no contributions is not an honest ceremony with nothing
+  // to check - it is the trivial SRS for tau = 1, where every "power" is the
+  // generator and the trapdoor is public. Refuse it explicitly rather than
+  // returning a vacuously green audit over an empty row list.
+  if (contributions.length === 0) {
+    return {
+      rows: [
+        {
+          label: 'transcript: at least one contribution',
+          equation: 'contributions.length >= 1',
+          ok: false,
+          detail:
+            'an empty transcript is the SRS for tau = 1, whose trapdoor everybody knows; there is nothing here to audit',
+        },
+      ],
+      ok: false,
+      erasureIsUnobservable: true,
+    }
+  }
+
   let prev: PowerPair = initialPowers(maxDegree)
   let prevHash = 'crypto-lab-polynomial-forge/powers-of-tau/genesis'
 

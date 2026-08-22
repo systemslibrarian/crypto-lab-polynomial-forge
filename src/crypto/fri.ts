@@ -101,6 +101,9 @@ export class OpeningPointInDomainError extends Error {
   }
 }
 
+/** 1/2 in Fr, computed once. It appears in every fold, on both sides. */
+const INV_TWO: bigint = Fr.inv(2n)
+
 /** A coset of the multiplicative subgroup of order size: { shift * w^i }. */
 export interface Domain {
   readonly size: number
@@ -433,8 +436,12 @@ export function friVerify(
         return fail('MALFORMED_PROOF', `query ${qi} layer ${k}: Merkle path does not reach the layer root`)
       }
       const x = layerDomain.points[idx]
-      const even = Fr.div(Fr.add(opening.lo, opening.hi), 2n)
-      const odd = Fr.div(Fr.sub(opening.lo, opening.hi), Fr.mul(2n, x))
+      // Two multiplications, not two inversions. `Fr.div` inverts its divisor
+      // every call, and this runs once per layer per query - which made the
+      // fold check the majority of friVerify's runtime, and Act 6 prints that
+      // runtime as a measured comparison against KZG and IPA.
+      const even = Fr.mul(Fr.add(opening.lo, opening.hi), INV_TWO)
+      const odd = Fr.mul(Fr.sub(opening.lo, opening.hi), Fr.inv(Fr.mul(2n, x)))
       const folded = Fr.add(even, Fr.mul(betas[k], odd))
 
       const nextIsFinal = k === domains.length - 1

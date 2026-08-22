@@ -510,22 +510,19 @@ export async function auditNonText(page: Page, within = 'body *'): Promise<NonTe
       // PER SIDE, not `border-top` for all four. An earlier fleet form of this
       // read `border-*-width` on every side but then measured `borderTopColor`
       // alone, which silently measures the WRONG EDGE whenever a control is
-      // delineated by one side only — elsewhere in this fleet that reported
-      // 1.12:1 for a selected tab whose entire boundary was a 3px
-      // `border-bottom` underline, the ARIA tab pattern's normal delineator.
-      // This lab's tabs happen to paint all four sides today; the per-side
-      // walk is what keeps that an implementation detail rather than a
-      // load-bearing assumption.
+      // delineated by one side only. 129 of 131 copies in this fleet still do
+      // that. It is live here: every `.verdict` box carries a 6px left border
+      // in its tone colour and 2px elsewhere, and the `.banner` is dashed - so
+      // "the border" is genuinely four different measurements, and the widest
+      // one is not the top.
       //
       // A side also has to be OPAQUE ENOUGH TO PAINT. `border: 1px solid
-      // transparent` is a layout spacer, not a delineator — it reserves the
-      // 1px a coloured state will later occupy so nothing shifts. This page
-      // uses exactly that on `.tab-btn`, whose ACTIVE state fills the border
-      // in with `--accent-ink`; counting the transparent spacer as a border
-      // would make the five unselected tabs — no fill, no painted edge,
-      // identified by their text alone, exactly the case the "is it trying to
-      // draw itself as a control?" test below exists to exclude — report
-      // 1.00:1 apiece.
+      // transparent` is a layout spacer, not a delineator - it reserves the
+      // 1px a coloured state will later occupy so nothing shifts. This lab
+      // does not currently use that idiom; the alpha test stays because the
+      // shipped `--line` tokens are opaque hex today and the day one becomes a
+      // low-percentage `color-mix()` toward `transparent` is exactly the day a
+      // control silently stops having an edge while still declaring one.
       const SIDES = ['top', 'right', 'bottom', 'left'] as const;
       const paintedSides = SIDES.filter((side) => {
         if (parseFloat(cs.getPropertyValue(`border-${side}-width`) || '0') <= 0) return false;

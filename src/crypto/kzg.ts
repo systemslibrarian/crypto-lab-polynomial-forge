@@ -224,7 +224,9 @@ export function attemptOpenAtClaimedValue(
 ): { readonly proof: KzgProof; readonly remainder: bigint; readonly honest: boolean } {
   const zz = frOf(z)
   const y = frOf(claimedY)
-  const { quotient, remainder } = divideByLinear(coefficients, zz, y)
+  // Trimmed for the same reason `open` trims: `commit` judges by degree, so a
+  // padded vector it accepted must not produce a quotient longer than the SRS.
+  const { quotient, remainder } = divideByLinear(polyTrim(coefficients), zz, y)
   const witness = g1Msm(srs.g1Powers.slice(0, quotient.length), quotient)
   return {
     proof: { z: zz, y, witness, srsDigest: srs.digest },

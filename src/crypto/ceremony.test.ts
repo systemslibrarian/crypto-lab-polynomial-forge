@@ -121,6 +121,36 @@ describe('the transcript audit', () => {
     expect(audit.rows.some((r) => !r.ok && r.label.includes('starts at the generators'))).toBe(true)
   })
 
+  it('refuses an SRS whose [1]2 is the point at infinity', () => {
+    // The specific shape that motivated the base-point check. e(O, Q) is the
+    // identity of G_T - correctly, and the EIP-4844 zero-polynomial vectors
+    // depend on it - so an SRS whose [1]2 is the identity makes the KZG
+    // verification equation collapse to something a zero witness satisfies for
+    // ANY (z, y). The audit has to refuse the SRS; the pairing helper is right.
+    const clean = runCeremony(honest(2))
+    const dead = {
+      ...clean,
+      srs: { ...clean.srs, g2Powers: clean.srs.g2Powers.map((P, i) => (i === 0 ? G2.ZERO : P)) },
+    }
+    const audit = auditTranscript(dead)
+    expect(audit.ok).toBe(false)
+
+    // ...and this is what it would cost if the audit stayed silent: a witness
+    // of zero opening an unrelated commitment to a value that is not p(z).
+    const C = commit(dead.srs, [3n, 1n, 4n, 1n, 5n])
+    const forged = { z: 7n, y: 999n, witness: G1.ZERO, srsDigest: dead.srs.digest }
+    expect(verify(dead.srs, C, 7n, 999n, forged).ok).toBe(true)
+    expect(polyEval([3n, 1n, 4n, 1n, 5n], 7n)).not.toBe(999n)
+  })
+
+  it('refuses an empty transcript rather than auditing nothing', () => {
+    const clean = runCeremony(honest(1))
+    const empty = { ...clean, contributions: [] }
+    const audit = auditTranscript(empty)
+    expect(audit.ok).toBe(false)
+    expect(audit.rows[0].detail).toMatch(/tau = 1/)
+  })
+
   it('refuses a contribution whose declared transcript hash is invented', () => {
     const clean = runCeremony(honest(2))
     const lying = {
