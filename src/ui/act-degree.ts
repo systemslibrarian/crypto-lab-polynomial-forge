@@ -155,7 +155,9 @@ export function actDegree(): HTMLElement {
       const secondResult = verify(srs, C, z0, lie, secondOpening.proof)
 
       bindingWrap.replaceChildren(
-        table({
+        scrollRegion(
+          'Evaluation binding checks',
+          table({
           caption: 'Evaluation binding, checked rather than asserted.',
           head: ['Claim', 'Checked by', 'Result'],
           rows: [
@@ -197,7 +199,8 @@ export function actDegree(): HTMLElement {
               ] as (string | Node)[],
             },
           ],
-        }),
+          }),
+        ),
       )
     }),
     { class: 'primary', id: 'degree-run' },

@@ -2,7 +2,7 @@
  * The on-ramp: what a polynomial commitment is, in plain language, before any
  * hex or slider - and an honest statement of scope immediately after it.
  */
-import { card, deep, el, para, table } from './dom.js'
+import { card, deep, el, para, scrollRegion, table } from './dom.js'
 import { DEGREE_UNENFORCED, DEGREE_UNENFORCED_EXPLANATION, FAILURE_CODES, FAILURE_EXPLANATIONS } from '../crypto/codes.js'
 
 export function heroSection(): HTMLElement {
@@ -128,11 +128,14 @@ export function failureCodeCard(): HTMLElement {
     para(
       'A verifier that can only say "no" teaches nothing. Every rejection on this page names which check failed, and the codes are deliberately not interchangeable - telling them apart is most of the lesson in the two attack acts.',
     ),
-    table({
-      caption: 'The five failure codes, and the one thing that is not a failure code.',
-      head: ['Code', 'What it means'],
-      rows,
-    }),
+    scrollRegion(
+      'The five failure codes',
+      table({
+        caption: 'The five failure codes, and the one thing that is not a failure code.',
+        head: ['Code', 'What it means'],
+        rows,
+      }),
+    ),
     el('div', { class: 'banner', role: 'note' }, [
       el('span', { class: 'verdict-icon', 'aria-hidden': 'true', text: '[!]' }),
       el('div', { class: 'verdict-body' }, [
