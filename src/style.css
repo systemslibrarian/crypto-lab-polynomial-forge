@@ -580,6 +580,18 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* Below the stacking breakpoint the two-column term/definition grid squeezes
+   the value into a 6-character ribbon. One column reads properly. */
+@media (max-width: 640px) {
+  .kv {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+  .kv dd {
+    margin-bottom: 0.5rem;
+  }
+}
+
 .hex {
   font-family: var(--mono);
   font-size: 0.8rem;

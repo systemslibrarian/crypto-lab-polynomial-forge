@@ -175,9 +175,13 @@ export function ipaOpen(setup: IpaSetup, coefficients: readonly bigint[], z: big
 /**
  * The scalar vector s with G* = <s, G>.
  *
- * s_i is a product of one challenge per round - x_j if bit j of i is set,
- * x_j^-1 otherwise. Building it costs n multiplications, and the MSM against it
- * costs n more: this function is where IPA's linear verification lives.
+ * s_i is a product of one challenge per round: for round j, x_j when bit
+ * (rounds-1-j) of i is set and x_j^-1 otherwise. The bit runs from the TOP of
+ * the index because round 0 is the first split - low half against high half of
+ * the whole vector - which is the most significant bit, not the least.
+ *
+ * Building s costs n multiplications and the MSM against it costs n more: this
+ * function is where IPA's linear verification lives.
  */
 export function ipaScalarVector(challenges: readonly bigint[], n: number): bigint[] {
   const rounds = challenges.length

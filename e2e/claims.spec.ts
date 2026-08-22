@@ -486,6 +486,16 @@ test.describe('NEG-2 — well-formedness is verifiable, erasure is not', () => {
 
     // ...and the transcript is still green while that is true.
     await expect(page.locator('#audit-verdict')).toContainText('TRANSCRIPT VERIFIES');
+
+    // NEG-2, asserted IN its fixture state rather than on a fresh page. The
+    // claim and the evidence for it have to be on screen together: a toxic
+    // ceremony whose audit passes, a forged opening the verifier accepted, and
+    // the sentence that says why no transcript could have prevented it.
+    const neg2 = page.locator('details.deep', { hasText: 'NEG-2' }).first();
+    await neg2.locator('summary').click();
+    await expect(neg2).toContainText('Well-formedness is verifiable; erasure is not.');
+    await expect(page.locator('#forge-verdict')).toHaveAttribute('data-kind', 'alarm');
+    await expect(page.locator('#audit-verdict')).toHaveAttribute('data-kind', 'ok');
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
@@ -561,6 +571,15 @@ test.describe('NEG-1 — a commitment binds a polynomial, not a statement about 
     await expect(page.locator('.card:has(#degree-run)')).toContainText(
       'Evaluation binding is intact'
     );
+
+    // NEG-1, asserted IN its fixture state: the over-degree witness has just
+    // been accepted at every constraint point, the verdict is alarm-red with no
+    // code to report, and the claim is on screen beside that evidence.
+    await expect(page.locator('#degree-verdict')).toHaveAttribute('data-kind', 'alarm');
+    const neg1 = page.locator('details.deep', { hasText: 'NEG-1' }).first();
+    await neg1.locator('summary').click();
+    await expect(neg1).toContainText('binds a polynomial, not a statement about it');
+    await expect(neg1).toContainText('no failure code available');
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
