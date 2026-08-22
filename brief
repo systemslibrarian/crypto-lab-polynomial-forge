@@ -1,0 +1,36 @@
+2. Polynomial Forge
+
+crypto-lab-polynomial-forge · ZERO-KNOWLEDGE
+
+Thesis. The commitment layer under PLONK-style, Bulletproofs-style, and STARK-style proof systems — machinery your ZK section uses three ways and never shows directly.
+
+Groth16 is deliberately not in that list. Revision 1 included it and was wrong: Groth16 has a circuit-specific structured reference string with the commitment structure baked into the QAP, not a swappable polynomial commitment scheme underneath. Say so in an act — the contrast between a monolithic SNARK and a polynomial-IOP-plus-commitment design is a teaching point, not a footnote.
+
+Construction. Three schemes committing to the same polynomial:
+
+Scheme	Powers	Setup	Proof	Verify	PQ
+KZG	PLONK-style systems	Trusted, universal	Constant	Constant (one pairing equation)	No
+IPA	Bulletproofs / Halo-style	Transparent	Logarithmic	Linear	No
+FRI	STARK-style systems	Transparent	Polylog	Polylog	Yes
+
+KZG on BLS12-381: commit C = [p(τ)]₁, open at z with quotient π = [(p(X) − p(z))/(X − z)]₁, verify e(C − [y]₁, [1]₂) = e(π, [τ − z]₂). IPA reuses the inner-product argument already in Bulletproofs. FRI already exists inside STARK Tower — surface it.
+
+Acts
+Commit. Pick coefficients; the commitment is one group element regardless of degree. That compression is the point.
+Open and verify. Step the quotient construction; show why (X − z) divides exactly when y = p(z) and leaves a remainder otherwise.
+The ceremony. Powers of tau, multi-party. Each participant contributes a factor and is supposed to erase it; the final trapdoor is the product. No individual participant ever knows the final τ, and the security property is exactly that it stays unknown so long as at least one contribution was fresh and erased. Absorbs the standalone Ceremony Forge proposal.
+Toxic waste — attack 1. Revision 2 said "one participant retains τ," which is incoherent: there is no single participant who has it. The correct and more interesting act is about what the transcript can prove. Run the ceremony with N participants. Every pairing consistency check passes, every contribution is provably well-formed, the transcript is green end to end. Then reveal that all N retained their factors. Multiply them, recover τ, and forge a valid opening for an arbitrary y ≠ p(z). The point is that the transcript proves each contribution was well-formed — it never proved anyone destroyed anything, and it looked identical in both worlds. All-green verification, compromised outcome: the same shape as Context Ward's Act 8, in a setting nobody expects it.
+Degree-bound omission — attack 2. The SRS supports degree up to D; the application requires a witness of degree ≤ d < D. A verifier that never enforces the bound accepts a commitment to a higher-degree polynomial engineered to satisfy every sampled constraint. Every KZG opening verifies correctly. Evaluation binding is intact throughout and was never the thing that broke — the exhibit must say this explicitly, because the tempting wrong lesson is that the missing check lets one commitment open two ways at the same point. It does not. What is false is the protocol's low-degree claim, one layer up.
+Three-way comparison. Setup, proof size, verifier cost, PQ safety, measured in-browser on the same polynomial.
+
+Negative claim (NEG-1). A polynomial commitment binds a polynomial, not a statement about it. Act 5's fixture: every cryptographic check green, the protocol-level claim false, and no failure code available because nothing cryptographic failed.
+
+Negative claim (NEG-2). KZG binding requires the final trapdoor to remain unknown, and a ceremony transcript cannot establish that it does. Well-formedness is verifiable; erasure is not. Act 4's fixture is a fully valid transcript over an entirely dishonest ceremony.
+
+Failure codes. PAIRING_FAIL · POINT_MISMATCH · SETUP_MISMATCH · MALFORMED_PROOF · DEGREE_EXCEEDED (only when enforcement is wired on). When enforcement is off, the page shows a persistent DEGREE_UNENFORCED banner rather than a failure — the absence is the exhibit.
+
+Vectors. Pin against a published KZG vector set; EIP-4844's trusted setup and blob commitment vectors are the most durable public anchor. Verify current file locations at build time rather than trusting a remembered path.
+
+Repo description.
+
+Browser demo: KZG, IPA, and FRI committing to the same polynomial — then every ceremony contributor secretly keeps their toxic waste, the transcript still verifies, and the reconstructed trapdoor forges an opening the pairing accepts.
