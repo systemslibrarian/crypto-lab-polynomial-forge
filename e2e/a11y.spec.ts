@@ -4,6 +4,7 @@ import {
   driveAllStates,
   expectBaselineNotStale,
   NARROW,
+  REFLOW,
   reportCollected,
   resetScanCount,
   scansPerformed,
@@ -69,6 +70,19 @@ for (const theme of ['dark'] as const) {
     resetScanCount();
     await boot(page, theme);
     await driveAllStates(page, `${theme} @380px`);
+    expect(scansPerformed, 'states scanned').toBe(EXPECTED_SCANS);
+    expect(errors, errors.join('\n')).toEqual([]);
+    expectBaselineNotStale();
+    reportCollected();
+  });
+
+  test(`no WCAG A/AA violations in ${theme} theme at 280px — reflow headroom below the 320px threshold`, async ({ page }) => {
+    test.setTimeout(1_800_000);
+    const errors = watchPageErrors(page);
+    await page.setViewportSize(REFLOW);
+    resetScanCount();
+    await boot(page, theme);
+    await driveAllStates(page, `${theme} @280px`);
     expect(scansPerformed, 'states scanned').toBe(EXPECTED_SCANS);
     expect(errors, errors.join('\n')).toEqual([]);
     expectBaselineNotStale();
