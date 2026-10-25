@@ -16,7 +16,7 @@ import {
  * green gate says nothing about how much of the page it looked at - and a
  * refactor that dropped half the drive would still be green, just faster.
  */
-const EXPECTED_SCANS = 28;
+const EXPECTED_SCANS = 32;
 
 /**
  * WCAG 2.1 A/AA regression gate.

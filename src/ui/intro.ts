@@ -107,7 +107,7 @@ export function scopeCard(): HTMLElement {
             text: 'FRI here uses teaching-grade parameters chosen so the page responds instantly. The soundness figure it prints is labelled a heuristic because that is what it is.',
           }),
           el('li', {
-            text: 'One opening at a time, coefficient basis. Production KZG batches many openings across many polynomials and works in Lagrange basis.',
+            text: 'Coefficient-basis openings, plus a separate two-opening batch attack. Production KZG commonly batches many openings across many polynomials and uses other representations such as Lagrange basis.',
           }),
         ]),
       ]),

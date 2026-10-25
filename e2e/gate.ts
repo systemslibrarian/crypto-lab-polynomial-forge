@@ -299,8 +299,9 @@ export async function boot(page: Page, theme: 'dark'): Promise<void> {
   // ── The page really rendered ────────────────────────────────────────────
   await expect(page.locator('main')).toHaveCount(1);
   await expect(page.locator('h1')).toHaveText('Polynomial Forge');
-  // Intro, scope, seven acts, and the failure-code reference.
-  await expect(page.locator('section.card')).toHaveCount(10);
+  // Intro, scope, seven original acts, the batch act, and the failure-code reference.
+  await expect(page.locator('section.card')).toHaveCount(11);
+  await expect(page.locator('#batch-act')).toHaveCount(1);
   await expect(page.locator('.scripture-footer')).toHaveCount(1);
 
   // The shared skip link points at an id that exists. axe's skip-link rule is
@@ -922,6 +923,20 @@ export async function driveAllStates(page: Page, theme: string): Promise<void> {
   await scanAt('Act 6: all three schemes measured, the comparison table rendered');
 
   // ── Hover, which persists after a click ─────────────────────────────────
+  await page.locator('#batch-run').click();
+  await expect(page.locator('#batch-bound')).toHaveAttribute('data-kind', 'ok');
+  await scanAt('honest two-opening batch: both verifiers accept');
+  await page.selectOption('#batch-case', 'attack');
+  await page.locator('#batch-run').click();
+  await expect(page.locator('#batch-early')).toHaveAttribute('data-kind', 'alarm');
+  await expect(page.locator('#batch-bound')).toHaveAttribute('data-kind', 'rejected');
+  await scanAt('false two-opening batch: premature acceptance and bound rejection');
+  await page.locator('#batch-results summary').click();
+  await scanAt('batch challenge and proof bytes disclosed');
+  await page.selectOption('#batch-point', '7');
+  await expect(page.locator('#batch-results')).toBeHidden();
+  await scanAt('batch results retired after an input change');
+
   await page.locator('#compare-run').hover();
   await scanAt('a primary button hovered - its accent fill repainted');
 
