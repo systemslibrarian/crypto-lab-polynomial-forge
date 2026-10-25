@@ -4,6 +4,7 @@ import { actCommit } from './ui/act-commit.js'
 import { actOpen } from './ui/act-open.js'
 import { actCeremony, actToxic } from './ui/act-ceremony.js'
 import { actDegree } from './ui/act-degree.js'
+import { actBatch } from './ui/act-batch.js'
 import { actCompare, actGroth16 } from './ui/act-compare.js'
 import { el } from './ui/dom.js'
 
@@ -33,6 +34,7 @@ function mount(): void {
     actCeremony(),
     actToxic(),
     actDegree(),
+    actBatch(),
     actCompare(),
     actGroth16(),
     failureCodeCard(),

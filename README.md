@@ -233,7 +233,24 @@ npm run test:claims  # the claims suite: does the page tell the truth
 
 ## Build & Verify
 
-Vite + TypeScript, static, no backend. `npm test` runs **302 unit tests** across 11 files.
+Vite + TypeScript, static, no backend. `npm test` runs **311 unit tests** across 12 files.
+
+**Last-challenge batch exhibit.** The separate two-opening example implements the
+linear system in [The Last Challenge Attack on Fiat-Shamir in KZG-based SNARKs](https://eprint.iacr.org/2024/398),
+§4.1 equation (11), PDF page 10. It uses the current ceremony's public SRS with
+`p(X) = 3 + 2X + X²`. Honest mode is the default. Attack mode changes both
+values and solves for two proof points *after* the premature challenge: each
+individual opening fails, but the weighted BLS12-381 pairing passes. The
+proof-bound control hashes both witnesses before deriving its challenge and
+rejects these same false openings. The attack never receives the setup secret.
+This isolates the KZG batch mechanism; it does not implement the full PLONK
+exploit or prove security of every repaired protocol.
+
+Nine unit cases cover three independent setups, both solved group equations,
+honest acceptance, individual rejection, proof-bound rejection, transcript
+sensitivity, and malformed metadata. Browser assertions check displayed values
+and verdicts, two point choices, and retirement after control or ceremony changes.
+All four added rendering states are scanned at 1280px, 380px, and 280px.
 
 **Known-answer tests.** `src/crypto/__vectors__/eip4844.json` pins the Ethereum EIP-4844 trusted
 setup prefix and all **122 published `verify_kzg_proof` vectors**, recorded with the repository,

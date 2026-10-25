@@ -873,3 +873,5 @@ details.deep p:last-child {
     scroll-behavior: auto;
   }
 }
+/* Proof encodings remain readable without widening the page on phones. */
+.batch-bytes { white-space: pre-wrap; overflow-wrap: anywhere; }
