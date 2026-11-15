@@ -154,7 +154,7 @@ export function actCompare(): HTMLElement {
     deep(
       'FRI — how a hash function becomes a commitment scheme',
       para(
-        'Evaluate p on a domain BLOWUP times larger than it needs to be and Merkle-commit the evaluations. The redundancy is the point: a genuine low-degree polynomial fills only a 1/BLOWUP fraction of the space of all functions on that domain, so two different low-degree polynomials disagree almost everywhere and a few random spot checks catch a cheat.',
+        'Evaluate p on a domain BLOWUP times larger than it needs to be and Merkle-commit the evaluations. The redundancy is the point. 1/BLOWUP is the RATE — n coefficients’ worth of information spread over n·BLOWUP points — not the share of the function space the low-degree polynomials occupy: there are |F|^n of those among |F|^(n·BLOWUP) functions on the domain, a fraction far smaller than 1/BLOWUP. What the spot checks lean on is the DISTANCE the rate buys. Two distinct polynomials of degree below n agree on at most n−1 of the n·BLOWUP points, so they disagree on at least a 1 − 1/BLOWUP fraction of the domain, and a handful of random positions catches a cheat.',
       ),
       para(
         'To open at z, form q(X) = (p(X) − y)/(X − z) — the same division as Act 2, for the same reason — and prove q is low degree. That proof folds q in half repeatedly, each round replacing q with a random combination of its even and odd parts, until what is left is small enough to send outright. The verifier spot-checks that each layer really is the fold of the one before it.',

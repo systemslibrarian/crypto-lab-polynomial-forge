@@ -12,6 +12,7 @@ import {
   friCommit,
   friProofBytes,
   friProve,
+  friRateDistance,
   friSoundnessBits,
   friVerify,
   serializeFriProof,
@@ -235,6 +236,27 @@ describe('FRI as a polynomial commitment', () => {
 
   it('refuses a polynomial larger than the configured n', () => {
     expect(() => friCommit(new Array(PARAMS.n + 1).fill(1n), PARAMS)).toThrow(/configured for/)
+  })
+
+  // 1/blowup is the RATE, not the share of the function space the low-degree
+  // polynomials occupy. The page copy and the module header both used to say
+  // the second thing; these are the two numbers they were conflating, and the
+  // distance is the one the spot checks actually rest on.
+  it('separates the rate from the share of the function space', () => {
+    const rd = friRateDistance(PARAMS)
+    expect(rd.domainSize).toBe(PARAMS.n * PARAMS.blowup)
+    expect(rd.rate).toBe(1 / PARAMS.blowup)
+
+    // |F|^n out of |F|^|D|: nothing like 1/blowup, and not expressible as a
+    // decimal fraction, which is why it is reported as a log2.
+    expect(rd.lowDegreeShareLog2).toBe(-255 * (rd.domainSize - PARAMS.n))
+    expect(rd.lowDegreeShareLog2).toBeLessThan(Math.log2(rd.rate))
+
+    // Two distinct polynomials of degree < n agree at most n-1 times, so they
+    // differ on at least 113 of the 128 points at these defaults - which is
+    // more than 1 - rate, never less.
+    expect(rd.minDisagreementFraction).toBe((rd.domainSize - (PARAMS.n - 1)) / rd.domainSize)
+    expect(rd.minDisagreementFraction).toBeGreaterThanOrEqual(1 - rd.rate)
   })
 
   it('states its soundness as a heuristic, not a claim', () => {

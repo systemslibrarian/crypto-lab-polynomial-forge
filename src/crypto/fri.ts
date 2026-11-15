@@ -7,10 +7,15 @@
  * can be measured against each other.
  *
  * COMMIT. Evaluate p on a domain D that is BLOWUP times larger than it needs to
- * be, and Merkle-commit the evaluations. The redundancy is the point: a genuine
- * degree-(n-1) polynomial fills only a 1/BLOWUP fraction of the space of all
- * functions on D, so two different low-degree polynomials disagree almost
- * everywhere, and a few random spot checks catch a cheat.
+ * be, and Merkle-commit the evaluations. The redundancy is the point, but note
+ * what 1/BLOWUP measures: it is the RATE, n coefficients' worth of information
+ * spread over |D| = n*BLOWUP points. It is NOT the share of the function space
+ * the low-degree polynomials occupy - that is |F|^n out of |F|^|D|, which for
+ * n = 16 over a 255-bit field is around 2^-28560, not 1/8. The rate is what
+ * buys DISTANCE: two distinct polynomials of degree < n agree on at most n-1 of
+ * the |D| points, so they disagree on at least a 1 - 1/BLOWUP fraction of D
+ * (113 of 128 at the defaults here), and a few random spot checks catch a
+ * cheat. `friRateDistance()` computes both from the parameters in use.
  *
  * OPEN AT z (the DEEP trick). To prove p(z) = y, form
  *
@@ -85,6 +90,36 @@ export function friSoundnessBits(params: FriParams): { readonly heuristicBits: n
     heuristicBits: Math.round(params.queries * Math.log2(params.blowup)),
     caveat:
       'Query-phase only, under the same conjectured proximity gaps production STARKs assume, with no proof-of-work grinding and no commit-phase term. Not a security claim.',
+  }
+}
+
+/**
+ * What 1/blowup actually measures, and what it does not.
+ *
+ * `rate` is n / |D| = 1 / blowup: the share of the codeword that carries
+ * information. `lowDegreeShareLog2` is the share of the FUNCTION space the
+ * low-degree polynomials occupy - |F|^n out of |F|^|D|, reported as a log2
+ * because the number has no useful decimal form - and it is nothing like the
+ * rate. `minDisagreementFraction` is the quantity the spot checks actually
+ * rest on: two distinct polynomials of degree < n agree on at most n-1 of the
+ * |D| points, so they differ on at least (|D| - (n-1)) / |D|, which is always
+ * at least 1 - rate.
+ */
+export function friRateDistance(
+  params: FriParams,
+  fieldBits = 255,
+): {
+  readonly domainSize: number
+  readonly rate: number
+  readonly lowDegreeShareLog2: number
+  readonly minDisagreementFraction: number
+} {
+  const domainSize = params.n * params.blowup
+  return {
+    domainSize,
+    rate: params.n / domainSize,
+    lowDegreeShareLog2: -fieldBits * (domainSize - params.n),
+    minDisagreementFraction: (domainSize - (params.n - 1)) / domainSize,
   }
 }
 
