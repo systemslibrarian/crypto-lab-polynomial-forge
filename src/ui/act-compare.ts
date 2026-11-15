@@ -43,7 +43,7 @@ export function actCompare(): HTMLElement {
           ms(r.verifyMs),
           el('span', {
             class: r.postQuantum ? 'tag-ok' : 'tag-bad',
-            text: r.postQuantum ? '[+] yes' : '[x] no',
+            text: r.postQuantum ? '[+] conjectured' : '[x] no',
           }),
           el('span', {
             class: r.verified ? 'tag-ok' : 'tag-alarm',
@@ -160,7 +160,7 @@ export function actCompare(): HTMLElement {
         'To open at z, form q(X) = (p(X) − y)/(X − z) — the same division as Act 2, for the same reason — and prove q is low degree. That proof folds q in half repeatedly, each round replacing q with a random combination of its even and odd parts, until what is left is small enough to send outright. The verifier spot-checks that each layer really is the fold of the one before it.',
       ),
       para(
-        'Nothing here rests on a discrete log or a pairing, only on a hash. That is why FRI is the only post-quantum row in the table. Grover halves the effective security of a hash; it does not break the construction the way Shor breaks a discrete log.',
+        'Nothing here rests on a discrete log or a pairing, only on a hash. That is why FRI is the only row in the table whose post-quantum security is even conjectured: it rests on hash functions, and no quantum attack beyond Grover is known. Grover halves the effective security of a hash; it does not break the construction the way Shor breaks a discrete log.',
       ),
       para('crypto-lab-stark-tower runs FRI in its usual setting, as the engine of a STARK.'),
     ),
@@ -188,7 +188,7 @@ export function actGroth16(): HTMLElement {
     deep(
       'What "polynomial IOP plus commitment" buys you',
       para(
-        'Designing a proof system in two layers means the layers can be swapped. Halo took the PLONK-shaped protocol and put IPA underneath it, and the trusted setup disappeared. The STARK family put FRI underneath and got post-quantum security. Neither had to redesign the argument, because the argument was never entangled with the commitment.',
+        'Designing a proof system in two layers means the layers can be swapped. Halo took the PLONK-shaped protocol and put IPA underneath it, and the trusted setup disappeared. The STARK family put FRI underneath and got conjectured post-quantum security — hash-based, with no known quantum attack. Neither had to redesign the argument, because the argument was never entangled with the commitment.',
       ),
       para(
         'Groth16 has no such seam. Its structured reference string encodes the QAP — the arithmetisation of one specific circuit — directly, and its verification is a single fixed pairing equation over three group elements. There is nothing to swap.',

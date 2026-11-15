@@ -23,7 +23,7 @@ field of BLS12-381:
 |---|---|---|---|---|---|
 | **KZG** (Kate–Zaverucha–Goldberg, 2010) | PLONK-style systems | trusted, universal | constant | constant — one pairing equation | no |
 | **IPA** (inner-product argument; Bootle et al. 2016, Bünz et al. 2018) | Bulletproofs / Halo-style systems | transparent | logarithmic | linear | no |
-| **FRI** (Ben-Sasson et al. 2018) | STARK-style systems | transparent | polylogarithmic | polylogarithmic | yes |
+| **FRI** (Ben-Sasson et al. 2018) | STARK-style systems | transparent | polylogarithmic | polylogarithmic | conjectured (hash-based) |
 
 **The problem.** A proof about a computation gets turned into a handful of claims about
 polynomials. Somebody has to make those claims short and checkable without handing over the
@@ -101,8 +101,10 @@ what EIP-4844 blob commitments are), vector commitments, and verifiable secret s
 
 **Choose KZG when** proof size and verifier cost dominate and a universal ceremony is acceptable —
 one ceremony serves every circuit up to its degree bound. **Choose IPA when** you cannot accept a
-trusted setup and can afford linear verification. **Choose FRI when** you need post-quantum
-security or want no setup at all, and can afford proofs measured in tens of kilobytes.
+trusted setup and can afford linear verification. **Choose FRI when** you need a post-quantum
+posture — conjectured, since FRI rests only on hash functions and no quantum attack beyond Grover's
+generic speedup is known — or want no setup at all, and can afford proofs measured in tens of
+kilobytes.
 
 **Do NOT use this code for anything.** It is a teaching implementation: single-opening,
 coefficient-basis, non-hiding, with FRI parameters chosen for page responsiveness rather than for a
@@ -186,10 +188,19 @@ omission as a rejection would misrepresent what a real verifier experiences, whi
   ceremony output itself.
 - **PLONK and its descendants** (Halo2, Plonky, Aztec, zkSync, Scroll) use KZG or IPA as the
   commitment under a polynomial IOP. Swapping the commitment is how Halo removed the trusted setup.
-- **STARKs** (StarkWare, Polygon Miden, RISC Zero, Winterfell) use FRI, which is why they are
-  post-quantum and why their proofs are measured in tens or hundreds of kilobytes.
+- **STARKs** (StarkWare, Miden, RISC Zero, Winterfell) use FRI, which is why
+  their post-quantum security is conjectured rather than broken outright — it rests on hash functions,
+  with no known quantum attack beyond Grover's generic speedup — and why their proofs are measured in
+  tens or hundreds of kilobytes.
 - **Verkle trees**, proposed for Ethereum state, are built from polynomial commitments rather than
   hashes precisely because the commitment is constant-size regardless of arity.
+
+**Sources reviewed 15 November 2026:** the project listed above as Miden was announced in 2021 as
+Polygon Miden; Polygon Labs said on 29 April 2025 that "Miden has been successfully incubated from the
+Agglayer Breakout Program, spinning off into a $25 million seed round" ([Polygon blog](https://polygon.technology/blog/miden-raises-25m-from-a16z-crypto-1kx-and-hackvc-to-build-the-edge-blockchain)),
+and the project now presents itself as Miden with no mention of Polygon ([miden.xyz](https://miden.xyz/)). FRI's post-quantum security is described here as conjectured, matching
+[crypto-lab-stark-tower](https://systemslibrarian.github.io/crypto-lab-stark-tower/): hash-based, with no
+known quantum attack beyond Grover, but not proved.
 
 ---
 

@@ -175,7 +175,7 @@ export function runComparison(input: ComparisonInput): {
       verifyCostOrder: 'polylogarithmic',
       postQuantum: true,
       pqNote:
-        'Rests only on a hash. Grover halves the effective security of a hash; it does not break the construction the way Shor breaks a discrete log.',
+        'Conjectured post-quantum: rests only on a hash, and no quantum attack beyond Grover is known. Grover halves the effective security of a hash; it does not break the construction the way Shor breaks a discrete log.',
       commitMs: friC.ms,
       openMs: friP.ms,
       verifyMs: friV.ms,

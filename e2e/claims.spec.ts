@@ -670,10 +670,11 @@ test.describe('Act 6 — the comparison reports what it measured', () => {
     expect(proofBytes.KZG).toBeLessThan(proofBytes.IPA);
     expect(proofBytes.IPA).toBeLessThan(proofBytes.FRI);
 
-    // Post-quantum status is a property of the assumption, not of the run.
+    // Post-quantum status is a property of the assumption, not of the run;
+    // FRI's is conjectured (hash-based), not proved.
     expect(byName['KZG'][8]).toContain('no');
     expect(byName['IPA'][8]).toContain('no');
-    expect(byName['FRI'][8]).toContain('yes');
+    expect(byName['FRI'][8]).toContain('conjectured');
     // And all three actually ran.
     for (const name of ['KZG', 'IPA', 'FRI']) expect(byName[name][9]).toContain('verified');
 

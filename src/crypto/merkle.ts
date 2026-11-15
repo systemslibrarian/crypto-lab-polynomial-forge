@@ -2,7 +2,7 @@
  * A binary Merkle tree over field elements, SHA-256.
  *
  * FRI's commitment is a Merkle root, and its openings are Merkle paths - which
- * is the whole reason FRI is post-quantum: nothing here rests on a discrete log
+ * is the whole reason FRI is conjectured post-quantum: nothing here rests on a discrete log
  * or a pairing, only on a hash being collision-resistant. Grover halves the
  * effective security of a hash, which is why post-quantum hash-based
  * constructions reach for 256-bit digests; it does not break them the way
