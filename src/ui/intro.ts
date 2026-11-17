@@ -81,7 +81,7 @@ export function scopeCard(): HTMLElement {
         el('h3', { text: 'Real' }),
         el('ul', {}, [
           el('li', {
-            text: 'Real BLS12-381 group and pairing arithmetic from @noble/curves. The pairing is not the subject here - crypto-lab-pairing-gate takes it apart - so it comes from an audited library rather than being hand-rolled.',
+            text: 'Real BLS12-381 group and pairing arithmetic from @noble/curves. The pairing is not the subject here - crypto-lab-pairing-gate takes it apart - so it comes from a library rather than being hand-rolled: @noble/curves, pinned ^2.4.0, one release past its latest independent audit (“at version 2.3.0, in Aug 2026, by Trail of Bits”).',
           }),
           el('li', {
             text: 'Everything above the group operations is hand-rolled in this repo and meant to be read: the polynomial division, the commitment and verification algebra, the degree-bound check, the ceremony and its pairing checks, both attacks, the inner-product argument, and FRI.',

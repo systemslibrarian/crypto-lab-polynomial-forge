@@ -12,8 +12,9 @@
  *     an evaluation domain of size 2^k exists. Fr - 1 = 2^32 * odd, so Fr has
  *     2-adicity 32 and supports domains up to 2^32 points.
  *
- * The field arithmetic itself comes from @noble/curves (audited, constant-time
- * where it claims to be). The teaching-visible parts - polynomial division,
+ * The field arithmetic itself comes from @noble/curves (constant-time where it
+ * claims to be; pinned ^2.4.0, one release past its latest independent audit,
+ * "at version 2.3.0, in Aug 2026, by [Trail of Bits]"). The teaching-visible parts - polynomial division,
  * the commitment/opening algebra, the ceremony, the two attacks - are
  * hand-rolled in this directory so they can be read and stepped.
  */

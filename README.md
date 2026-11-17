@@ -57,7 +57,10 @@ the page responds instantly, and the soundness figure it prints is labelled a he
 that is what it is.
 
 **Where the crypto comes from.** BLS12-381 group and pairing arithmetic is `@noble/curves`
-(audited, dependency-free, and what the rest of this fleet uses); SHA-256 is `@noble/hashes`. The
+(dependency-free, and what the rest of this fleet uses; pinned `^2.4.0`, one release past its latest
+independent audit, "at version 2.3.0, in Aug 2026, by [Trail of Bits]"); SHA-256 is `@noble/hashes`
+(pinned `^2.3.0`, whose one independent audit is "at version 1.0.0, in Jan 2022, independently, by
+[Cure53]"). The
 pairing is not the teaching subject here — [Pairing Gate](https://systemslibrarian.github.io/crypto-lab-pairing-gate/)
 takes it apart — so it comes from a library rather than being hand-rolled. **Everything above the
 group operations is hand-rolled in `src/crypto/` and meant to be inspected**: the polynomial

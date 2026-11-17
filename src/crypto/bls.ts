@@ -4,8 +4,10 @@
  * WHY A LIBRARY HERE. The pairing is not the teaching subject of this lab -
  * crypto-lab-pairing-gate already takes it apart - and a hand-rolled optimal
  * Ate pairing over an Fp12 tower would be several thousand lines of code whose
- * bugs would be invisible to a learner. @noble/curves is audited, has no
- * dependencies, and is what the rest of this fleet uses for BLS12-381.
+ * bugs would be invisible to a learner. @noble/curves has no dependencies and is
+ * what the rest of this fleet uses for BLS12-381. Its latest independent audit is
+ * "at version 2.3.0, in Aug 2026, by [Trail of Bits]", scope "everything"; the pin
+ * here is ^2.4.0, one release past it.
  *
  * WHAT IS HAND-ROLLED. Everything above the group operations: the SRS layout,
  * the commitment, the quotient, the verification equation, the degree-bound
