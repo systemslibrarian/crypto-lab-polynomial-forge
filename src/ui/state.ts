@@ -109,6 +109,27 @@ function notify(reason: string): void {
   for (const fn of listeners) fn(state, reason)
 }
 
+// Keep drafts separate from the field elements used in computations.
+const invalidNumbers = new Set<number | 'z'>()
+export function invalidCoefficients(): boolean {
+  return [...invalidNumbers].some(key => key !== 'z')
+}
+export function invalidPoint(): boolean {
+  return invalidNumbers.has('z')
+}
+export function editNumber(key: number | 'z', value: bigint | null): void {
+  if (value === null) {
+    if (!invalidNumbers.has(key)) {
+      invalidNumbers.add(key)
+      notify('a numeric input needs correction')
+    }
+    return
+  }
+  const repaired = invalidNumbers.delete(key)
+  const changed = key === 'z' ? setZ(value) : setCoefficient(key, value)
+  if (repaired && !changed) notify('the numeric input was restored')
+}
+
 /** Returns true when the value actually changed. */
 export function setCoefficient(index: number, value: bigint): boolean {
   const v = frOf(value)

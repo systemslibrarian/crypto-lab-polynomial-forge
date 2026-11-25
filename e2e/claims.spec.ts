@@ -110,6 +110,65 @@ async function rows(page: Page, selector: string): Promise<string[][]> {
 
 const num = (s: string): number => Number(s.replace(/[^0-9.]/g, ''));
 
+test('malformed claims retire the proof and the true-value button repairs an unchanged field element', async ({ page }) => {
+  const errors = await boot(page);
+  const y = page.locator('#open-y');
+  const truth = frEval(await coefficients(page), await openingPoint(page));
+  const verify = page.locator('#open-verify');
+  await verify.click();
+  await expect(page.locator('#open-verdict')).toHaveAttribute('data-kind', 'ok');
+  for (const draft of ['oops', '', '-1', '1.25']) {
+    await y.fill(draft);
+    await expect(y).toHaveAttribute('aria-invalid', 'true');
+    await expect(verify).toBeHidden();
+    await expect(page.locator('#proof-detail')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Use the true value p(z)' }).click();
+    await expect(y).toHaveValue(String(truth));
+    await expect(y).not.toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('#open-verdict')).toHaveAttribute('data-kind', 'idle');
+    await verify.click();
+    await expect(page.locator('#open-verdict')).toHaveAttribute('data-kind', 'ok');
+  }
+  await y.fill(String(truth + R));
+  await verify.click();
+  await expect(page.locator('#open-verdict')).toHaveAttribute('data-kind', 'ok');
+  expect(errors).toEqual([]);
+});
+
+test('coefficients and opening points require whole numbers, and proof results follow the repaired inputs', async ({ page }) => {
+  const errors = await boot(page);
+  const coef = page.locator('#coef-0');
+  const z = page.locator('#open-z');
+  const verify = page.locator('#open-verify');
+  const y = page.locator('#open-y');
+  const original = await coefficients(page);
+  await verify.click();
+  for (const draft of ['-4', '1.5', '', '1000000', '1.00000000000000001']) {
+    await coef.fill(draft);
+    await expect(coef).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('#commit-detail')).toBeHidden();
+    await expect(verify).toBeHidden();
+  }
+  await page.locator('#coef-1').fill('');
+  await coef.fill('3');
+  await expect(verify).toBeHidden();
+  await page.locator('#coef-1').fill('1');
+  await expect(page.locator('#open-verdict')).toHaveAttribute('data-kind', 'idle');
+  for (const draft of ['-4', '', '1.75', '1000000']) {
+    await z.fill(draft);
+    await expect(z).toHaveAttribute('aria-invalid', 'true');
+    await expect(verify).toBeHidden();
+    await expect(page.locator('#commit-detail')).toBeVisible();
+  }
+  for (const [input, expected] of [['0', 0n], ['1e3', 1000n], ['999999', 999999n]] as const) {
+    await z.fill(input);
+    await expect(y).toHaveValue(String(frEval(original, expected)));
+    await verify.click();
+    await expect(page.locator('#open-verdict')).toHaveAttribute('data-kind', 'ok');
+  }
+  expect(errors).toEqual([]);
+});
+
 test.describe('Act 1 — the commitment', () => {
   test('the size table is arithmetically consistent with the controls it describes', async ({
     page,

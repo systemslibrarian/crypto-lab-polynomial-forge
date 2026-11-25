@@ -12,7 +12,7 @@
  * Then the real prover runs, the real pairing runs, and the verifier says what
  * it says.
  */
-import { button, card, deep, el, panel, para, scrollRegion } from './dom.js'
+import { boundedInteger, button, card, deep, el, panel, para, scrollRegion } from './dom.js'
 import { ellipsize, groupHex, ms, scalar, scalarFull } from './format.js'
 import { verdictBox } from './verdict.js'
 import { Fr, frOf } from '../crypto/fr.js'
@@ -28,7 +28,7 @@ import {
 } from '../crypto/kzg.js'
 import { runCeremony } from '../crypto/ceremony.js'
 import { g1ToHex } from '../crypto/bls.js'
-import { setClaimedY, setZ, state, subscribe, trueY } from './state.js'
+import { editNumber, invalidPoint, setClaimedY, state, subscribe, trueY } from './state.js'
 import { guarded } from './guard.js'
 
 export function actOpen(): HTMLElement {
@@ -39,20 +39,7 @@ export function actOpen(): HTMLElement {
   let step = state.coefficients.length
   let lastGeneration = -1
 
-  const zInput = el('input', {
-    type: 'number',
-    id: 'open-z',
-    step: '1',
-    min: '0',
-    max: '999999',
-    value: String(state.z),
-    inputmode: 'numeric',
-  }) as HTMLInputElement
-  zInput.addEventListener('input', () => {
-    const raw = zInput.value.trim()
-    const n = raw === '' ? 0n : BigInt(Math.trunc(Number(raw)) || 0)
-    setZ(frOf(n < 0n ? -n : n))
-  })
+  const { input: zInput, error: zError } = boundedInteger('open-z', 'The opening point', state.z, value => editNumber('z', value))
 
   const yInput = el('input', {
     type: 'text',
@@ -86,16 +73,23 @@ export function actOpen(): HTMLElement {
     const raw = yInput.value.trim()
     if (!/^\d+$/.test(raw)) {
       setYError(
-        'Not a field element: y must be a non-negative whole number. The value below is unchanged until this is fixed.',
+        'Enter a non-negative whole number for y or use the true value to resume the division.',
       )
+      retireOpening('The claimed value needs correction.')
+      updateOpening()
       return
     }
     setYError('')
     setClaimedY(frOf(BigInt(raw)))
+    updateOpening()
   })
 
   const resetY = button('Use the true value p(z)', () => {
-    setClaimedY(trueY())
+    const y = trueY()
+    yInput.value = String(y)
+    setYError('')
+    setClaimedY(y)
+    updateOpening()
   })
 
   const tableWrap = el('div')
@@ -397,54 +391,33 @@ export function actOpen(): HTMLElement {
     { id: 'tamper-bytes' },
   )
 
+  const results = el('div')
+  function retireOpening(reason: string): void {
+    verdict.retire(reason)
+    proofPanel.replaceChildren()
+  }
+  function updateOpening(): void {
+    resetY.disabled = invalidPoint()
+    results.hidden = invalidPoint() || yInput.hasAttribute('aria-invalid')
+  }
   subscribe((s, reason) => {
     if (s.generation !== lastGeneration) {
       lastGeneration = s.generation
       step = s.coefficients.length
-      verdict.retire(`${reason}, so the verdict below it is no longer about what is on screen. Run it again.`)
-      proofPanel.replaceChildren()
+      retireOpening(`${reason}. Run verification again.`)
       tamperVerdict.retire(`${reason}, so this rejection is no longer about what is on screen. Run it again.`)
       tamperPanel.replaceChildren()
     }
-    if (zInput.value !== String(s.z) && document.activeElement !== zInput) zInput.value = String(s.z)
-    if (yInput.value !== String(s.claimedY) && document.activeElement !== yInput) {
+    if (reason === 'the polynomial changed' || reason === 'the opening point changed') {
       yInput.value = String(s.claimedY)
-      // The invalid flag belongs to what is IN the box. Replacing the contents
-      // programmatically - which is what "Use the true value" does - has to
-      // clear it, or the box keeps an alarm border over a perfectly good value.
       setYError('')
     }
+    updateOpening()
     renderTableau()
   })
   renderTableau()
 
-  return card(
-    el('span', { class: 'act-kicker', text: 'ACT 2 · THE MECHANISM' }),
-    el('h2', { text: 'Open and verify — why the division has to come out exactly' }),
-    para(
-      'To prove p(z) = y, the prover divides p(X) − y by (X − z) and commits to the quotient. That is the whole opening. And it only works when y is right, for a reason you can watch happen: the remainder of that division is exactly p(z) − y.',
-      'lede',
-    ),
-    para(
-      'Step the division below. Then change the claimed value and step it again. When y is wrong the bottom cell stops being zero, the "quotient" stops being a polynomial, and there is nothing left for the prover to commit to. Press the verify button either way and watch the real pairing agree.',
-    ),
-    panel(
-      'Inputs',
-      el('div', { class: 'row' }, [
-        el('div', { class: 'field' }, [el('label', { for: 'open-z', text: 'opening point z' }), zInput]),
-        el('div', { class: 'field' }, [
-          el('label', { for: 'open-y', text: 'claimed value y' }),
-          yInput,
-          yError,
-        ]),
-        resetY,
-      ]),
-      el('p', {
-        id: 'open-y-help',
-        class: 'compare-note',
-        text: 'y is a field element, so any non-negative integer is accepted and reduced mod r. Type anything other than p(z) to break it.',
-      }),
-    ),
+  results.append(
     tableWrap,
     el('div', { class: 'stepper-controls' }, [stepFwd, stepBack, runAll, resetSteps, stepStatus]),
     remainderLine,
@@ -458,6 +431,36 @@ export function actOpen(): HTMLElement {
     el('div', { class: 'stepper-controls' }, [tamperValue, tamperPoint, tamperSetup, tamperBytes]),
     tamperVerdict.root,
     tamperPanel,
+  )
+
+  return card(
+    el('span', { class: 'act-kicker', text: 'ACT 2 · THE MECHANISM' }),
+    el('h2', { text: 'Open and verify — why the division has to come out exactly' }),
+    para(
+      'To prove p(z) = y, the prover divides p(X) − y by (X − z) and commits to the quotient. That is the whole opening. And it only works when y is right, for a reason you can watch happen: the remainder of that division is exactly p(z) − y.',
+      'lede',
+    ),
+    para(
+      'Step the division below. Then change the claimed value and step it again. A wrong y leaves a nonzero remainder. Division still gives a polynomial quotient, but multiplying it by (X − z) leaves out that remainder. Press the verify button either way and watch the real pairing agree.',
+    ),
+    panel(
+      'Inputs',
+      el('div', { class: 'row' }, [
+        el('div', { class: 'field' }, [el('label', { for: 'open-z', text: 'opening point z' }), zInput, zError]),
+        el('div', { class: 'field' }, [
+          el('label', { for: 'open-y', text: 'claimed value y' }),
+          yInput,
+          yError,
+        ]),
+        resetY,
+      ]),
+      el('p', {
+        id: 'open-y-help',
+        class: 'compare-note',
+        text: 'y is a field element, so any non-negative integer is accepted and reduced mod r. A claim fails when its residue differs from p(z).',
+      }),
+    ),
+    results,
     deep(
       'The same division, moved into the exponent',
       para(

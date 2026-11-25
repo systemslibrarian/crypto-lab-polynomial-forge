@@ -6,6 +6,7 @@ import { actCeremony, actToxic } from './ui/act-ceremony.js'
 import { actDegree } from './ui/act-degree.js'
 import { actBatch } from './ui/act-batch.js'
 import { actCompare, actGroth16 } from './ui/act-compare.js'
+import { invalidCoefficients, invalidPoint, subscribe } from './ui/state.js'
 import { el } from './ui/dom.js'
 
 const found = document.querySelector<HTMLDivElement>('#app')
@@ -25,17 +26,24 @@ const root: HTMLDivElement = found
  * wait on, so they cannot race the first render.
  */
 function mount(): void {
+  const opening = actOpen()
+  const comparison = actCompare()
+  const toxic = actToxic()
+  subscribe(() => {
+    opening.hidden = invalidCoefficients()
+    comparison.hidden = toxic.hidden = invalidCoefficients() || invalidPoint()
+  })
   const main = el('main', { id: 'main', 'aria-label': 'Polynomial Forge' }, [
     heroSection(),
     introCard(),
     scopeCard(),
     actCommit(),
-    actOpen(),
+    opening,
     actCeremony(),
-    actToxic(),
+    toxic,
     actDegree(),
     actBatch(),
-    actCompare(),
+    comparison,
     actGroth16(),
     failureCodeCard(),
   ])

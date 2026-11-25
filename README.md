@@ -71,8 +71,8 @@ pairing checks, both attacks, the inner-product argument, and FRI.
 
 ## Exhibits
 
-1. **Commit.** Edit the coefficients and watch the polynomial's own size grow while the commitment
-   stays at 48 bytes. Both sizes are measured, not asserted, and the commitment is a real
+1. **Commit.** Edit the eight coefficients to change the polynomial. Their fixed-width encoding uses 256 bytes,
+   and the compressed commitment uses 48 bytes. The commitment is a real
    multi-scalar multiplication against the ceremony's reference string.
 2. **Open and verify — the mechanism.** The synthetic-division tableau for `(p(X) − y) ÷ (X − z)`,
    steppable row by row, with the remainder cell in plain sight. Change the claimed value and the

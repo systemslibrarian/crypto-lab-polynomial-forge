@@ -103,6 +103,32 @@ export function button(
   return b
 }
 
+/** The bounded numeric fields share the same range and error behaviour. */
+export function boundedInteger(
+  id: string, label: string, value: bigint, onEdit: (value: bigint | null) => void,
+): { input: HTMLInputElement; error: HTMLElement } {
+  const input = el('input', {
+    id, type: 'number', value: String(value), min: '0', max: '999999', step: '1',
+    required: true, inputmode: 'numeric', 'aria-describedby': id + '-error',
+  })
+  const error = el('span', { id: id + '-error', class: 'field-error', role: 'status' })
+  input.addEventListener('input', () => {
+    const n = input.valueAsNumber
+    // Native number inputs can round a noninteger to an integer before checking step.
+    // Inspect the digits that lie to the right of the decimal point after scaling.
+    const [mantissa, exponent = '0'] = input.value.toLowerCase().split('e')
+    const fractionPlaces = (mantissa.split('.')[1]?.length ?? 0) - Number(exponent)
+    const exactInteger = fractionPlaces <= 0 || !/[1-9]/.test(mantissa.replace('.', '').slice(-fractionPlaces))
+    const valid = input.validity.valid && Number.isSafeInteger(n) && exactInteger
+    if (valid) input.removeAttribute('aria-invalid')
+    else input.setAttribute('aria-invalid', 'true')
+    const message = valid ? '' : label + ' must be a whole number from 0 to 999999. Correct the input to see its results.'
+    if (error.textContent !== message) error.textContent = message
+    onEdit(valid ? BigInt(n) : null)
+  })
+  return { input, error }
+}
+
 export function labelledInput(
   id: string,
   labelText: string,

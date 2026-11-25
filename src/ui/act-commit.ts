@@ -1,43 +1,26 @@
 /**
  * Act 1 - Commit.
  *
- * The exhibit is compression: pick coefficients, watch the polynomial's own
- * size grow, and watch the commitment sit at 48 bytes and refuse to move. It is
- * shown by measuring both, never asserted - and the commitment is a real
+ * Compare the fixed-width coefficient vector with a 48-byte commitment.
+ * Changing the polynomial recomputes the commitment using a real
  * multi-scalar multiplication against the ceremony's structured reference
  * string, timed as it happens.
  */
-import { card, deep, el, panel, para, scrollRegion, table } from './dom.js'
+import { boundedInteger, card, deep, el, panel, para, scrollRegion, table } from './dom.js'
 import { bytes, ellipsize, groupHex, ms, polyText, scalar } from './format.js'
 import { commit, KZG_COMMITMENT_BYTES } from '../crypto/kzg.js'
 import { g1ToHex } from '../crypto/bls.js'
 import { polyByteLength, polyDegree } from '../crypto/poly.js'
-import { EDITABLE_COEFFICIENTS, setCoefficient, state, subscribe } from './state.js'
-import { frOf } from '../crypto/fr.js'
+import { EDITABLE_COEFFICIENTS, editNumber, invalidCoefficients, state, subscribe } from './state.js'
 
 export function actCommit(): HTMLElement {
   const coefWrap = el('div', { class: 'coefs' })
-  const inputs: HTMLInputElement[] = []
 
   for (let i = 0; i < EDITABLE_COEFFICIENTS; i++) {
     const id = `coef-${i}`
-    const input = el('input', {
-      type: 'number',
-      id,
-      step: '1',
-      min: '0',
-      max: '999999',
-      value: String(state.coefficients[i]),
-      inputmode: 'numeric',
-    }) as HTMLInputElement
-    input.addEventListener('input', () => {
-      const raw = input.value.trim()
-      const n = raw === '' ? 0n : BigInt(Math.trunc(Number(raw)) || 0)
-      setCoefficient(i, frOf(n < 0n ? -n : n))
-    })
-    inputs.push(input)
+    const { input, error } = boundedInteger(id, `c${i}`, state.coefficients[i], value => editNumber(i, value))
     coefWrap.appendChild(
-      el('div', { class: 'coef' }, [el('label', { for: id, text: `c${i} (X^${i})` }), input]),
+      el('div', { class: 'coef' }, [el('label', { for: id, text: `c${i} (X^${i})` }), input, error]),
     )
   }
 
@@ -48,6 +31,12 @@ export function actCommit(): HTMLElement {
   const growLabel = el('p', { class: 'compare-note' })
 
   function render(): void {
+    const valid = !invalidCoefficients()
+    sizeTable.hidden = commitOut.hidden = growLabel.hidden = !valid
+    if (!valid) {
+      polyOut.textContent = 'Waiting for valid coefficients.'
+      return
+    }
     polyOut.textContent = `p(X) = ${polyText(state.coefficients)}`
 
     const srs = state.ceremony.srs
@@ -109,11 +98,6 @@ export function actCommit(): HTMLElement {
   }
 
   subscribe(() => {
-    // Keep the inputs in step when something else changes the polynomial.
-    inputs.forEach((input, i) => {
-      const want = String(state.coefficients[i])
-      if (input.value !== want && document.activeElement !== input) input.value = want
-    })
     render()
   })
   render()
@@ -131,7 +115,7 @@ export function actCommit(): HTMLElement {
     deep(
       'Why the commitment is binding',
       para(
-        'C = [p(tau)]1 hides p behind a discrete logarithm, so the commitment reveals nothing about the coefficients that is easy to extract. Binding is the other direction: to open C to a polynomial q with q != p you would need [p(tau)]1 = [q(tau)]1, that is (p - q)(tau) = 0, which means tau is a root of the non-zero polynomial p - q.',
+        'This commitment is deterministic. Anyone with the public setup can commit to a candidate polynomial and compare the result with C. For two distinct polynomials p and q to yield the same C, they must satisfy [p(tau)]1 = [q(tau)]1, that is (p - q)(tau) = 0, which means tau is a root of the non-zero polynomial p - q.',
       ),
       para(
         'A degree-d polynomial has at most d roots in a field of about 2^255 elements, so hitting one by chance is hopeless. But finding one deliberately is easy IF YOU KNOW TAU - and that is the whole of Act 4.',
